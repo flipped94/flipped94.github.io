@@ -9,7 +9,7 @@
 <meta name="description" content="The higher I got, the more amazed I was by the view.">
 <meta name="theme-color" content="#000">
 <title>Spring MVC中HandlerMapping和HandlerAdapter是怎么工作的？ | Flipped&#39;s Blog</title>
-<link rel="shortcut icon" href="/favicon.ico?v=1611408315506">
+<link rel="shortcut icon" href="/favicon.ico?v=1611422394893">
 <link rel="stylesheet" href="/media/css/gemini.css">
 <link rel="stylesheet" href="/media/fonts/font-awesome.css">
 <link
@@ -39,7 +39,7 @@
 
 
   <meta name="description" content="Spring MVC中HandlerMapping和HandlerAdapter是怎么工作的？" />
-  <meta name="keywords" content="" />
+  <meta name="keywords" content="Spring MVC" />
 </head>
 
 <body>
@@ -202,19 +202,19 @@
     <div class="sidebar-item-box">
       <a href="/archives/">
         
-        <span class="site-item-stat-count">10</span>
+        <span class="site-item-stat-count">11</span>
         <span class="site-item-stat-name language" data-lan="article">文章</span>
       </a>
     </div>
     <div class="sidebar-item-box">
       <a href="">
-        <span class="site-item-stat-count">2</span>
+        <span class="site-item-stat-count">5</span>
         <span class="site-item-stat-name language" data-lan="category">分类</span>
       </a>
     </div>
     <div class="sidebar-item-box">
       <a href="/tags/">
-        <span class="site-item-stat-count">2</span>
+        <span class="site-item-stat-count">5</span>
         <span class="site-item-stat-name language" data-lan="tag">标签</span>
       </a>
     </div>
@@ -567,6 +567,19 @@
     </span>
     
     <span class="meta-item">
+      <i class="fa fa-folder-o"></i>
+      <span class="pc-show language" data-lan="category-in">分类于</span>
+      
+      
+      <a href="https://flipped94.github.io/tag/spring-mvc/">
+        <span>Spring MVC</span>
+      </a>
+      
+      
+    </span>
+    <span class="post-meta-divider">|</span>
+    
+    <span class="meta-item">
       <i class="fa fa-clock-o"></i>
       <span>11<span class="language" data-lan="minute">分钟</span></span>
     </span>
@@ -893,9 +906,15 @@ value=HandlerMethod</p>
   </ul>
   <div class="tags">
     
+      <a href="https://flipped94.github.io/tag/spring-mvc/"># Spring MVC</a>
+    
   </div>
   <div class="nav">
     <div class="nav-prev">
+      
+        <i class="fa fa-chevron-left"></i>
+        <a class="nav-pc-next" title="Kafka（一） 入门" href="https://flipped94.github.io/post/zawpATTcu/">Kafka（一） 入门</a class="nav-pc-next">
+        <a class="nav-mobile-prev" title="Kafka（一） 入门" href="https://flipped94.github.io/post/zawpATTcu/">上一篇</a>
       
     </div>
     <div class="nav-next">
@@ -1409,6 +1428,163 @@ value=HandlerMethod</p>
       <hr>
     </div>
     <div class="result" id="result">
+      
+      <div class="item">
+        <a class="result-title" style="opacity: 0;" href="https://flipped94.github.io/post/zawpATTcu/"" data-c="
+          &lt;h2 id=&#34;11-引言&#34;&gt;1.1 引言&lt;/h2&gt;
+&lt;h3 id=&#34;什么是事件流&#34;&gt;什么是事件流？&lt;/h3&gt;
+&lt;p&gt;从技术上讲，事件流是指以流的形式实时捕获事件源(如数据库、传感器、移动设备、云服务和软件应用程序)中的数据；持久地存储这些事件流以供以后检索;实时和回顾性地操作、处理和响应事件流；并根据需要将事件流路由到不同的目标的技术。因此，事件流确保了数据的连续流和解释，以便正确的信息在正确的时间出现在正确的位置。&lt;/p&gt;
+&lt;h3 id=&#34;使用事件流可以做什么&#34;&gt;使用事件流可以做什么?&lt;/h3&gt;
+&lt;p&gt;事件流应用于跨越众多行业和组织，包括:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;实时处理支付和金融交易，如在证券交易所、银行和保险公司。&lt;/li&gt;
+&lt;li&gt;实时跟踪和监控汽车、卡车、车队和发货，如物流和汽车行业。&lt;/li&gt;
+&lt;li&gt;持续从物联网设备或其他设备(如工厂和风电场)获取和分析传感器数据。&lt;/li&gt;
+&lt;li&gt;收集并立即响应客户的互动和订单，例如在零售，酒店和旅游行业以及移动应用程序中。&lt;/li&gt;
+&lt;li&gt;监测住院病人的情况，预测病情变化，确保在紧急情况下及时治疗。&lt;/li&gt;
+&lt;li&gt;连接、存储和提供由公司不同部门产生的数据。&lt;/li&gt;
+&lt;li&gt;作为数据平台、事件驱动架构和微服务的基础。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;apache-kafka-是事件流平台意味着什么&#34;&gt;Apache Kafka 是事件流平台意味着什么？&lt;/h3&gt;
+&lt;p&gt;Kafka结合了三个关键功能，所以可以用一个经过实战测试的解决方案来实现你的端到端事件流用例:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;发布（写入）和订阅（读取）事件流，包括从其他系统连续导入/导出数据。&lt;/li&gt;
+&lt;li&gt;根据需要持久而可靠地存储事件流。&lt;/li&gt;
+&lt;li&gt;处理事件流的发生或追溯。&lt;br&gt;
+所有这些功能都以分布式，高度可扩展，弹性，容错和安全的方式提供。可以选择将 Kafka 部署在裸机硬件，虚拟机和容器，本地以及云中。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;kafka-概述&#34;&gt;Kafka 概述&lt;/h3&gt;
+&lt;p&gt;Kafka是一个分布式系统，由服务器（Server）和客户端（Client）组成，通过高性能的TCP网络协议进行通信。它可以部署在裸机、虚拟机、内部环境和云环境中的容器上。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;服务器&lt;/strong&gt;：Kafka 是作为一个集群运行的一个或多个服务器，可以跨多个数据中心或云区域。这些服务器中的一些形成了存储层，称为代理（Broker）。其他服务器运行 Kafka 连接 （ Kafka Connect）以事件流的形式不断导入和导出数据，将 Kafka 与现有系统集成，如关系数据库和其他Kafka集群。Kafka 集群是高度可扩展和容错的，如果它的任何一个服务器故障，其他服务器将接管它的工作，以确保不丢失任何数据的连续操作。&lt;br&gt;
+&lt;strong&gt;客户端&lt;/strong&gt;：客户端实现编写分布式应用程序和微服务，即使在网络问题或机器故障的情况下，它们也可以并行地、大规模地、以容错的方式读取、写入和处理事件流。Kafka 社区提供了数十个客户端：Java 和 Scala 客户端，更高级别的 Kafka Streams 库，Go、Python、C/C++ 和许多其他编程语言以及REST API。&lt;/p&gt;
+&lt;h3 id=&#34;主要概念及术语&#34;&gt;主要概念及术语&lt;/h3&gt;
+&lt;p&gt;事件记录了在这个世界或你的业务中“发生了一些事情”的事实。它在文档中也称为记录或消息。当你向Kafka读写数据时，你是以事件的形式来完成的。从概念上讲，事件具有键、值、时间戳和可选的元数据头。下面是一个例子:&lt;/p&gt;
+&lt;p&gt;活动重点:“爱丽丝”&lt;br&gt;
+事件值:“向Bob支付了200美元”&lt;br&gt;
+事件时间戳:“2020年6月25日下午2:06”&lt;br&gt;
+生产者是那些向Kafka发布(写)事件的客户端应用程序，消费者是那些订阅(读和处理)这些事件的客户端应用程序。在Kafka中，生产者和消费者是完全解耦的，并且彼此是不可知的，这是一个关键的设计元素，以实现Kafka众所周知的高可伸缩性。例如，生产者永远不需要等待消费者。Kafka提供了各种各样的保证，比如精确地处理一次事件的能力。&lt;/p&gt;
+&lt;p&gt;事件被组织并持久地存储在主题中。非常简单，主题类似于文件系统中的文件夹，事件是该文件夹中的文件。一个示例主题名称可以是“payments”。Kafka中的主题总是多生产者和多订阅者:一个主题可以有0个、1个或多个生产者向它写入事件，也可以有0个、1个或多个消费者订阅这些事件。主题中的事件可以根据需要经常读取—与传统消息传递系统不同，事件在使用后不会被删除。相反，你可以通过每个主题的配置设置来定义Kafka应该保留你的事件多长时间，超过这个时间旧的事件就会被丢弃。Kafka的性能与数据大小是一致的，所以长时间存储数据是非常好的。&lt;/p&gt;
+&lt;p&gt;主题是分区的，这意味着一个主题被分散在位于不同Kafka broker上的许多“桶”上。数据的分布式放置对于可伸缩性非常重要，因为它允许客户机应用程序同时从多个代理读取和写入数据。当一个新事件被发布到一个主题时，它实际上被附加到该主题的一个分区中。具有相同事件键的事件(例如，一个客户或车辆ID)被写入到同一个分区，Kafka保证任何给定topic-partition的消费者总是会按照写入的顺序读取该分区的事件。&lt;/p&gt;
+&lt;h3 id=&#34;主要概念及术语-2&#34;&gt;主要概念及术语&lt;/h3&gt;
+&lt;p&gt;事件（Event）记录了在这个世界或你的业务中“发生了一些事情”的事实。它在文档中也称为记录或消息。向 Kafka 读写数据时，是以事件的形式完成的。从概念上讲，事件具有键（key）、值（value）、时间戳和可选的元数据头。下面是一个例子:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;事件 Key:“爱丽丝”&lt;/li&gt;
+&lt;li&gt;事件 Value:“向Bob支付了200美元”&lt;/li&gt;
+&lt;li&gt;事件时间戳:“2020年6月25日下午2:06”&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;生产者（Producer）是那些向Kafka发布(写)事件的客户端应用程序，消费者（Consumer）是那些订阅(读和处理)这些事件的客户端应用程序。在Kafka中，生产者和消费者是完全解耦的，并且彼此是不可知的，这是实现 Kafka 众所周知的高可伸缩性的一个关键设计。例如，生产者永远不需要等待消费者。Kafka 提供了各种各样的保证，比如精确地处理一次事件的能力。&lt;/p&gt;
+&lt;p&gt;事件被组织并持久地存储在主题（Topic）中。主题类似于文件系统中的文件夹，事件是该文件夹中的文件。示例的主题名称可以是“payments”。Kafka中的主题总是多生产者和多订阅者：一个主题可以有0个、1个或多个生产者向它写入事件，也可以有0个、1个或多个消费者订阅这些事件。主题中的事件可以根据需要经常读取，与传统消息传递系统不同，事件在使用后不会被删除。相反，可以通过每个主题的配置设置定义事件保留多长时间，超过这个时间旧的事件就会被丢弃。Kafka的性能相对于数据大小实际上是恒定的，因此长时间存储数据是完全可以的。&lt;/p&gt;
+&lt;p&gt;主题是分区的（Partition），这意味着一个主题被分散在位于不同 Kafka 代理上的许多“桶(Bucket)”上。数据的分布式存储对于可伸缩性非常重要，因为它允许客户端应用程序同时从多个代理读取和写入数据。当一个新事件被发布到一个主题时，它实际上被附加到该主题的一个分区中。具有相同事件 key 的事件（例如，一个客户或车辆ID）将被写入到同一个分区，并且Kafka保证，何给定topic-partition的消费者总是会按照写入的顺序读取该分区的事件。&lt;br&gt;
+&lt;img src=&#34;https://img.flipped.work/img/20210124001127.png&#34;/&gt;&lt;br&gt;
+如上图所示，示例主题有四个分区P1-P4。两个不同的生产者客户端通过网络将事件写入主题的分区，彼此独立地向主题发布新事件。具有相同键的事件（在图中用它们的颜色表示）被写入到相同的分区。注意，如果合适的话，两个生产者都可以写同一个分区。&lt;/p&gt;
+&lt;p&gt;为了使数据具有容错性和高可用性，可以在每个地理区域或数据中心之间复制每个主题，以便始终有多个代理具有数据副本，以防万一出错。常见的生产设置复制因子为3，即数据将始终有三个副本。 此复制在主题分区级别执行。&lt;/p&gt;
+&lt;p&gt;该入门手册应该足够介绍。 如果您有兴趣，文档的“设计”部分将详细介绍Kafka的各种概念。&lt;/p&gt;
+&lt;p&gt;让你的数据容错和可用性,每一个主题可以被复制,甚至跨geo-regions或数据中心,这样总有多个经纪人有一份数据以防出错,你想做代理维护,等等。一个常见的生产设置是3的复制因子，也就是说，您的数据总是有三个副本。该复制在主题分区级别上执行。&lt;/p&gt;
+&lt;h3 id=&#34;kafka-api&#34;&gt;Kafka API&lt;/h3&gt;
+&lt;p&gt;除了用于管理和管理任务的命令行工具外，Kafka 还有用于 Java和Scala的五个核心API：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://kafka.apache.org/documentation.html#adminapi&#34;&gt;Admin API&lt;/a&gt;，用于管理和检查主题，代理和其他Kafka对象。&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://kafka.apache.org/documentation.html#producerapi&#34;&gt;Producer API&lt;/a&gt;，用于将事件流发布（写）到一个或多个Kafka主题。&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://kafka.apache.org/documentation.html#consumerapi&#34;&gt;Consumer API&lt;/a&gt;，订阅（读）一个或多个主题并处理为其产生的事件流。&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://kafka.apache.org/documentation/streams&#34;&gt;Streams API&lt;/a&gt;，实现流处理应用程序和微服务。它提供了处理事件流的高级函数，包括转换、有状态操作（如聚合和连接、开窗、基于事件时间的处理等等）。从一个或多个主题读取输入，以便生成到一个或多个主题的输出，从而有效地将输入流转换为输出流。&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://kafka.apache.org/documentation.html#connect&#34;&gt;Connect API&lt;/a&gt;，用于构建和运行可重用的数据导入/导出连接器，用于消费（读）或产生（写）来自外部系统和应用程序的事件流，以便与 Kafka 集成。例如，连接到关系数据库（如PostgreSQL）的连接器可能会捕获对一组表的每个更改。通常不需要实现自己的连接器，因为 Kafka 社区已经提供了数百个现成的连接器。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;12-用例&#34;&gt;1.2 用例&lt;/h2&gt;
+&lt;h3 id=&#34;消息队列&#34;&gt;消息队列&lt;/h3&gt;
+&lt;p&gt;Kafka可以很好地替代传消息代理。消息代理的使用有多种原因（将处理与数据生产者分离，缓冲未处理的消息等）。与大多数消息系统相比，Kafka 具有更好的吞吐量、内置分区、复制和容错，这使得它成为大规模消息处理应用程序的良好解决方案。&lt;br&gt;
+在这个领域，Kafka 可以与 ActiveMQ 或 RabbitMQ 等传统消息系统相媲美。&lt;/p&gt;
+&lt;h3 id=&#34;网站活跃追踪&#34;&gt;网站活跃追踪&lt;/h3&gt;
+&lt;p&gt;Kafka 最初的用例是能够重建一个用户活跃跟踪管道作为一组实时发布-订阅管道。这意味着站点活跃（页面浏览、搜索或其他用户可能采取的行动）被发布到每个活动类型有一个主题的中心主题。这些管道可用于订阅一系列用例，包括实时处理、实时监控，并加载到Hadoop或离线数据仓库系统中以进行离线处理和报告。&lt;br&gt;
+活跃跟踪的工作量通常非常大，因为会为每个用户页面视图生成许多活跃消息。&lt;/p&gt;
+&lt;h3 id=&#34;度量&#34;&gt;度量&lt;/h3&gt;
+&lt;p&gt;Kafka 经常用于运行监控数据。这涉及到从分布式应用程序聚合统计信息来生成集中的操作数据提要。&lt;br&gt;
+###日志聚合&lt;br&gt;
+许多人使用 Kafka 作为日志聚合解决方案的替代品。日志聚合通常从服务器收集物理日志文件，并将它们放在一个中心位置（可能是文件服务器或HDFS）进行处理。Kafka抽象了文件的细节，并将日志或事件数据作为消息流进行了更清晰的抽象。这允许更低的延迟处理，更容易支持多个数据源和分布式数据消费。与以日志为中心的系统（如Scribe或Flume）相比，Kafka提供了同样好的性能，由于复制而提供了更强的持久性保证，而且端到端延迟要低得多。&lt;/p&gt;
+&lt;h3 id=&#34;流处理&#34;&gt;流处理&lt;/h3&gt;
+&lt;p&gt;许多 Kafka 用户在处理管道中处理数据，该管道由多个阶段组成，原始输入数据从 Kafka 主题消费，然后聚合，丰富，或转换成新的主题，以进一步消费或后续处理。例如，推荐新闻文章的处理管道可能会从 RSS 订阅中抓取文章内容，并将其发布到“articles”主题；进一步的处理可能会对这些内容进行规范化或重复数据删除，并将清洗后的文章内容发布到新主题中；最后一个处理阶段可能会尝试向用户推荐这些内容。这种处理管道根据各个主题创建实时数据流图。从0.10.0.0开始，一个轻量级但强大的流处理库 Kafka Streams 在 Apache Kafka 中可用来执行如上所述的数据处理。除了 Kafka，其他开源流处理工具包括 Apache Storm 和 Apache Samza。&lt;/p&gt;
+&lt;h2 id=&#34;13-快速开始&#34;&gt;1.3 快速开始&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;获取 Kafka&lt;br&gt;
+&lt;a href=&#34;https://www.apache.org/dyn/closer.cgi?path=/kafka/2.7.0/kafka_2.13-2.7.0.tgz&#34;&gt;下载&lt;/a&gt;最新的Kafka版本并解压缩：&lt;/li&gt;
+&lt;/ol&gt;
+&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;$ tar -xzf kafka_2.13-2.7.0.tgz
+$ cd kafka_2.13-2.7.0
+&lt;/code&gt;&lt;/pre&gt;
+&lt;ol start=&#34;2&#34;&gt;
+&lt;li&gt;启动 KAFKA 环境&lt;br&gt;
+&lt;strong&gt;注意：本地环境必须安装了Java 8+&lt;/strong&gt;。顺序运行以下命令启动所有服务：&lt;/li&gt;
+&lt;/ol&gt;
+&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;# S启动 ZooKeeper 服务
+# 注意：很快 Apache Kafka 就将不再需要 Zookeeper.
+$ bin/zookeeper-server-start.sh config/zookeeper.properties
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;打开另一个终端并运行:&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;# 启动 Kafka 服务
+$ bin/kafka-server-start.sh config/server.properties
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;现在，一个基本的 Kafka 环境运行成功，可以使用了。&lt;/p&gt;
+&lt;ol start=&#34;3&#34;&gt;
+&lt;li&gt;创建主题存储事件&lt;br&gt;
+Kafka 是一个分布式事件流平台，允许在多台机器上读取、写入、存储和处理事件（在文档中也称为记录或消息）。&lt;br&gt;
+例如，支付交易、来自移动电话的地理位置更新、发货订单、来自物联网设备或医疗设备的传感器测量等等。这些事件被组织并存储在主题中。主题类似于文件系统中的文件夹，事件是该文件夹中的文件。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;因此，编写事件之前，必须创建主题。打开另一个终端并运行:&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;$ bin/kafka-topics.sh --create --topic quickstart-events --bootstrap-server localhost:9092
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;所有 Kafka 命令行工具都有额外的选项：运行不带任何参数的 Kafka-topics.sh 命令来显示使用信息。例如，显示新主题的分区数等细节:&lt;br&gt;
+$ bin/kafka-topics.sh --describe --topic quickstart-events --bootstrap-server localhost:9092&lt;br&gt;
+Topic:quickstart-events  PartitionCount:1    ReplicationFactor:1 Configs:&lt;br&gt;
+Topic: quickstart-events Partition: 0    Leader: 0   Replicas: 0 Isr: 0&lt;/p&gt;
+&lt;ol start=&#34;4&#34;&gt;
+&lt;li&gt;向主题写入事件&lt;br&gt;
+Kafka 客户端通过网络与 Kafka 代理通信，进行写(或读)事件。一旦收到，代理将以持久和容错的方式存储事件。&lt;br&gt;
+运行控制台生产者客户端，在主题中写入事件。默认情况下，输入的每一行将导致一个单独的事件被写入主题。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;$ bin/kafka-console-producer.sh --topic quickstart-events --bootstrap-server localhost:9092
+This is my first event
+This is my second event
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;可以随时使用 Ctrl-C 停止生产者客户端。&lt;/p&gt;
+&lt;ol start=&#34;5&#34;&gt;
+&lt;li&gt;读事件&lt;br&gt;
+打开另一个终端并运行控制台消费者客户端读取刚刚创建的事件:&lt;/li&gt;
+&lt;/ol&gt;
+&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;$ bin/kafka-console-consumer.sh --topic quickstart-events --from-beginning --bootstrap-server localhost:9092
+This is my first event
+This is my second event
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;同样，可以随时使用 Ctrl-C 停止消费者客户端。&lt;/p&gt;
+&lt;ol start=&#34;6&#34;&gt;
+&lt;li&gt;使用 KAFKA CONNECT 导入/导出数据作为事件流&lt;br&gt;
+可能在关系数据库或传统消息系统等现有系统中拥有大量数据，以及许多已经使用这些系统的应用程序。Kafka Connect 允许不断地从外部系统摄取数据到 Kafka，反之亦然。因此，将现有的系统与Kafka集成是非常容易的。为了使这个过程更容易，Kafka 社区提供了很多连接器。&lt;br&gt;
+查看 &lt;a href=&#34;https://kafka.apache.org/documentation/#connect&#34;&gt;Kafka Connect 部分&lt;/a&gt;，了解更多关于如何导入/导出数据到/出 Kafka。&lt;/li&gt;
+&lt;li&gt;用 KAFKA 流处理事件&lt;br&gt;
+一旦数据作为事件存储在 Kafka 中，就可以使用 Kafka Streams 客户端库处理数据。它允许实现关键任务实时应用程序和微服务，其中输入和/或输出数据存储在Kafka主题中。Kafka Streams 结合了在客户端编写和部署标准 Java 和 Scala 应用程序的简便性以及 Kafka 服务器端集群技术的优势，使这些应用程序具有高度可伸缩性，弹性，容错性和分布式性。 该库支持一次精确处理，有状态操作和聚合，开窗，联接，基于事件时间的处理等等。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;下面是如何实现流行的WordCount算法:&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;KStream&amp;lt;String, String&amp;gt; textLines = builder.stream(&amp;quot;quickstart-events&amp;quot;);
+
+KTable&amp;lt;String, Long&amp;gt; wordCounts = textLines
+            .flatMapValues(line -&amp;gt; Arrays.asList(line.toLowerCase().split(&amp;quot; &amp;quot;)))
+            .groupBy((keyIgnored, word) -&amp;gt; word)
+            .count();
+
+wordCounts.toStream().to(&amp;quot;output-topic&amp;quot;), Produced.with(Serdes.String(), Serdes.Long()));
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;a href=&#34;https://kafka.apache.org/25/documentation/streams/quickstart&#34;&gt;Kafka Stream Demo&lt;/a&gt; 和&lt;a href=&#34;https://kafka.apache.org/25/documentation/streams/tutorial&#34;&gt;应用程序开发教程&lt;/a&gt;演示了如何编写和运行这样的流应用程序。&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;终止 KAFKA&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;使用 Ctrl-C 停止生产者和消费者客户端（如果还没有这样做的话）。&lt;/li&gt;
+&lt;li&gt;用 Ctrl-C 停止 Kafka 代理。&lt;/li&gt;
+&lt;li&gt;最后，按 Ctrl-C 停止 ZooKeeper 服务器。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;如果还想删除本地 Kafka 环境的任何数据，包括已经创建事件，只需运行命令:&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;$ rm -rf /tmp/kafka-logs /tmp/zookeeper
+&lt;/code&gt;&lt;/pre&gt;
+">Kafka（一） 入门</a>
+      </div>
       
       <div class="item">
         <a class="result-title" style="opacity: 0;" href="https://flipped94.github.io/post/T0USSMNum/"" data-c="
