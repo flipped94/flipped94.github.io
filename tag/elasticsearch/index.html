@@ -9,7 +9,7 @@
 <meta name="description" content="The higher I got, the more amazed I was by the view.">
 <meta name="theme-color" content="#000">
 <title>Flipped&#39;s Blog</title>
-<link rel="shortcut icon" href="/favicon.ico?v=1611422394893">
+<link rel="shortcut icon" href="/favicon.ico?v=1611471940900">
 <link rel="stylesheet" href="/media/css/gemini.css">
 <link rel="stylesheet" href="/media/fonts/font-awesome.css">
 <link
@@ -184,7 +184,7 @@
     <div class="sidebar-item-box">
       <a href="/archives/">
         
-        <span class="site-item-stat-count">11</span>
+        <span class="site-item-stat-count">12</span>
         <span class="site-item-stat-name language" data-lan="article">文章</span>
       </a>
     </div>
@@ -248,6 +248,8 @@
           <small class="language" data-lan="tag">标签</small>
         </h2>
       </div>
+      
+      
       
       
       
@@ -526,6 +528,169 @@
     <div class="result" id="result">
       
       <div class="item">
+        <a class="result-title" style="opacity: 0;" href="https://flipped94.github.io/post/qqGWSVvBP/"" data-c="
+          &lt;p&gt;Kafka 包括五个核心 API：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Admin API 允许管理和检查主题、代理和其他Kafka对象。&lt;/li&gt;
+&lt;li&gt;Producer  API 允许应用程序向 Kafka 集群中的主题发送数据流。&lt;/li&gt;
+&lt;li&gt;Consumer API 允许应用程序从 Kafka 集群中的主题中读取数据流。&lt;/li&gt;
+&lt;li&gt;Streams API 允许将数据流从输入主题转换为输出主题。&lt;/li&gt;
+&lt;li&gt;Connect API 允许实现连续地从一些源系统或应用程序拉入Kafka 或从 Kafka 推入一些接收器系统或应用程序的连接器。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Kafka 在一个独立于语言的协议上公开了它所有的功能，该协议有许多编程语言的客户端可用。然而，只有Java 客户端作为 Kafka 主要项目的一部分进行维护，其他的都可以作为独立的开源项目使用。&lt;br&gt;
+本文只介绍 Admin API，其他 API 在后续章节给出。&lt;/p&gt;
+&lt;h2 id=&#34;admin-api&#34;&gt;Admin API&lt;/h2&gt;
+&lt;p&gt;Admin API支持管理和检查 Topic、Boker、ACL 和其他 Kafka 对象。要使用 Admin API，需要添加以下Maven依赖项:&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-xml&#34;&gt;&amp;lt;dependency&amp;gt;
+    &amp;lt;groupId&amp;gt;org.apache.kafka&amp;lt;/groupId&amp;gt;
+    &amp;lt;artifactId&amp;gt;kafka-clients&amp;lt;/artifactId&amp;gt;
+    &amp;lt;version&amp;gt;2.7.0&amp;lt;/version&amp;gt;
+&amp;lt;/dependency&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;有关 Admin API 的更多信息，请参阅&lt;a href=&#34;https://kafka.apache.org/27/javadoc/index.html?org/apache/kafka/clients/admin/Admin.html&#34;&gt;javadoc&lt;/a&gt;。&lt;br&gt;
+相对比较重要的几个 API，如下表所示。&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;API&lt;/th&gt;
+&lt;th&gt;作用&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;AdminClient&lt;/td&gt;
+&lt;td&gt;AdminClient 对象&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;NewTopic&lt;/td&gt;
+&lt;td&gt;创建 Topic&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;CreateTopicsResult&lt;/td&gt;
+&lt;td&gt;创建 Topic 的返回结果&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;ListTopicsResult&lt;/td&gt;
+&lt;td&gt;查询 Topic 列表&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;ListTopicsOptions&lt;/td&gt;
+&lt;td&gt;查询 Topic 列表及选项&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;DescribeTopicsResult&lt;/td&gt;
+&lt;td&gt;查询 Topics&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;DescribeConfigsResult&lt;/td&gt;
+&lt;td&gt;查询 Topics 配置项&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h3 id=&#34;创建-adminclient&#34;&gt;创建 AdminClient&lt;/h3&gt;
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;public static final String TOPIC_NAME = &amp;quot;test-topic&amp;quot;;
+
+    public static AdminClient getAdminClient() {
+        Properties properties = new Properties();
+        properties.setProperty(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, &amp;quot;localhost:9092&amp;quot;);
+        return AdminClient.create(properties);
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id=&#34;创建-topic&#34;&gt;创建 Topic&lt;/h3&gt;
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;public static void createTopic() {
+        AdminClient adminClient = getAdminClient();
+        short rs = 1; // 副本因子
+        NewTopic newTopic = new NewTopic(TOPIC_NAME, 3, rs);
+        CreateTopicsResult topics = adminClient.createTopics(Arrays.asList(newTopic));
+        System.out.println(&amp;quot;topics: &amp;quot; + topics);
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id=&#34;查看-topic-列表&#34;&gt;查看 Topic 列表&lt;/h3&gt;
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;public static void topicList() {
+        AdminClient adminClient = getAdminClient();
+        try {
+            ListTopicsResult listTopicsResult = adminClient.listTopics();
+            Set&amp;lt;String&amp;gt; names = listTopicsResult.names().get();
+            System.out.println(&amp;quot;================&amp;quot;);
+            names.forEach(System.out::println);
+            System.out.println(&amp;quot;================&amp;quot;);
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id=&#34;删除-topic&#34;&gt;删除 Topic&lt;/h3&gt;
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;public static void deleteTopic() {
+        AdminClient adminClient = getAdminClient();
+        DeleteTopicsResult deleteTopicsResult = adminClient.deleteTopics(Collections.singletonList(TOPIC_NAME));
+        try {
+            deleteTopicsResult.all().get();
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id=&#34;描述-topic&#34;&gt;描述 Topic&lt;/h3&gt;
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;public static void describeTopic() {
+        AdminClient adminClient = getAdminClient();
+        DescribeTopicsResult describeTopicsResult = adminClient
+                .describeTopics(Arrays.asList(&amp;quot;test-topic&amp;quot;, &amp;quot;second-topic&amp;quot;));
+        try {
+            Map&amp;lt;String, TopicDescription&amp;gt; stringTopicDescriptionMap = describeTopicsResult.all().get();
+            Set&amp;lt;Map.Entry&amp;lt;String, TopicDescription&amp;gt;&amp;gt; entries = stringTopicDescriptionMap.entrySet();
+            System.out.println(&amp;quot;===========&amp;quot;);
+            entries.forEach(entry -&amp;gt; {
+                System.out.println(entry.getKey() + &amp;quot;:&amp;quot; + entry.getValue());
+                System.out.println(&amp;quot;===========&amp;quot;);
+            });
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id=&#34;topic-配置信息&#34;&gt;Topic 配置信息&lt;/h3&gt;
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;public static void describeConfig() {
+        AdminClient adminClient = getAdminClient();
+        ConfigResource configResource = new ConfigResource(ConfigResource.Type.TOPIC, TOPIC_NAME);
+        DescribeConfigsResult describeConfigsResult = adminClient
+                .describeConfigs(Collections.singletonList(configResource));
+        Map&amp;lt;ConfigResource, Config&amp;gt; configResourceConfigMap = null;
+        try {
+            configResourceConfigMap = describeConfigsResult.all().get();
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+        assert configResourceConfigMap != null;
+        Set&amp;lt;Map.Entry&amp;lt;ConfigResource, Config&amp;gt;&amp;gt; entries = configResourceConfigMap.entrySet();
+        entries.forEach(entry -&amp;gt; System.out.println(entry.getKey() + &amp;quot;:&amp;quot; + entry.getValue()));
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id=&#34;修改-topic-配置&#34;&gt;修改 Topic 配置&lt;/h3&gt;
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;public static void alterConfigResult() {
+        AdminClient adminClient = getAdminClient();
+        Map&amp;lt;ConfigResource, Config&amp;gt; configMap = new HashMap&amp;lt;&amp;gt;();
+        
+        // 两个参数
+        ConfigResource configResource = new ConfigResource(ConfigResource.Type.TOPIC, TOPIC_NAME);
+        Config config = new Config(Collections.singletonList(new ConfigEntry(&amp;quot;preallocate&amp;quot;, &amp;quot;true&amp;quot;)));
+        configMap.put(configResource, config);
+        
+        AlterConfigsResult alterConfigsResult = adminClient.alterConfigs(configMap);
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id=&#34;增加-partition-数量&#34;&gt;增加 Partition 数量&lt;/h3&gt;
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;public static void incrPartitions(int numPartitions) {
+        AdminClient adminClient = getAdminClient();
+        Map&amp;lt;String, NewPartitions&amp;gt; partitionsMap = new HashMap&amp;lt;&amp;gt;();
+        NewPartitions newPartitions = NewPartitions.increaseTo(numPartitions);
+        partitionsMap.put(TOPIC_NAME, newPartitions);
+        CreatePartitionsResult partitions = adminClient.createPartitions(partitionsMap);
+}
+&lt;/code&gt;&lt;/pre&gt;
+">Kafka（二）Admin API</a>
+      </div>
+      
+      <div class="item">
         <a class="result-title" style="opacity: 0;" href="https://flipped94.github.io/post/zawpATTcu/"" data-c="
           &lt;h2 id=&#34;11-引言&#34;&gt;1.1 引言&lt;/h2&gt;
 &lt;h3 id=&#34;什么是事件流&#34;&gt;什么是事件流？&lt;/h3&gt;
@@ -614,7 +779,7 @@ $ cd kafka_2.13-2.7.0
 # 注意：很快 Apache Kafka 就将不再需要 Zookeeper.
 $ bin/zookeeper-server-start.sh config/zookeeper.properties
 &lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;打开另一个终端并运行:&lt;/p&gt;
+&lt;p&gt;打开另一个终端，执行下面的命令&lt;/p&gt;
 &lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;# 启动 Kafka 服务
 $ bin/kafka-server-start.sh config/server.properties
 &lt;/code&gt;&lt;/pre&gt;
@@ -622,21 +787,21 @@ $ bin/kafka-server-start.sh config/server.properties
 &lt;ol start=&#34;3&#34;&gt;
 &lt;li&gt;创建主题存储事件&lt;br&gt;
 Kafka 是一个分布式事件流平台，允许在多台机器上读取、写入、存储和处理事件（在文档中也称为记录或消息）。&lt;br&gt;
-例如，支付交易、来自移动电话的地理位置更新、发货订单、来自物联网设备或医疗设备的传感器测量等等。这些事件被组织并存储在主题中。主题类似于文件系统中的文件夹，事件是该文件夹中的文件。&lt;/li&gt;
+例如，支付交易、来自移动电话的地理位置更新、发货订单、来自物联网设备或医疗设备的传感器测量等等。这些事件被组织并存储在主题中。主题类似于文件系统中的文件夹，事件是该文件夹中的文件。&lt;br&gt;
+因此，编写事件之前，必须创建主题。打开另一个终端并运行:&lt;/li&gt;
 &lt;/ol&gt;
-&lt;p&gt;因此，编写事件之前，必须创建主题。打开另一个终端并运行:&lt;/p&gt;
-&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;$ bin/kafka-topics.sh --create --topic quickstart-events --bootstrap-server localhost:9092
+&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;$ bin/kafka-topics.sh --create --topic quickstart-events --bootstrap-server localhost:9092 --partitions 3 --replication-factor 1
 &lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;所有 Kafka 命令行工具都有额外的选项：运行不带任何参数的 Kafka-topics.sh 命令来显示使用信息。例如，显示新主题的分区数等细节:&lt;br&gt;
-$ bin/kafka-topics.sh --describe --topic quickstart-events --bootstrap-server localhost:9092&lt;br&gt;
-Topic:quickstart-events  PartitionCount:1    ReplicationFactor:1 Configs:&lt;br&gt;
-Topic: quickstart-events Partition: 0    Leader: 0   Replicas: 0 Isr: 0&lt;/p&gt;
+&lt;p&gt;所有 Kafka 命令行工具都有额外的选项：运行不带任何参数的 Kafka-topics.sh 命令来显示使用信息。例如，显示新主题的分区数等细节:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;$ bin/kafka-topics.sh --describe --topic quickstart-events --bootstrap-server localhost:9092
+&lt;/code&gt;&lt;/pre&gt;
+&lt;img src=&#34;https://img.flipped.work/img/20210124093047.png&#34;/&gt;
 &lt;ol start=&#34;4&#34;&gt;
 &lt;li&gt;向主题写入事件&lt;br&gt;
 Kafka 客户端通过网络与 Kafka 代理通信，进行写(或读)事件。一旦收到，代理将以持久和容错的方式存储事件。&lt;br&gt;
 运行控制台生产者客户端，在主题中写入事件。默认情况下，输入的每一行将导致一个单独的事件被写入主题。&lt;/li&gt;
 &lt;/ol&gt;
-&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;$ bin/kafka-console-producer.sh --topic quickstart-events --bootstrap-server localhost:9092
+&lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;$ bin/kafka-console-producer.sh --topic quickstart-events --broker-list localhost:9092
 This is my first event
 This is my second event
 &lt;/code&gt;&lt;/pre&gt;
@@ -651,11 +816,15 @@ This is my second event
 &lt;/code&gt;&lt;/pre&gt;
 &lt;p&gt;同样，可以随时使用 Ctrl-C 停止消费者客户端。&lt;/p&gt;
 &lt;ol start=&#34;6&#34;&gt;
-&lt;li&gt;使用 KAFKA CONNECT 导入/导出数据作为事件流&lt;br&gt;
+&lt;li&gt;
+&lt;p&gt;使用 KAFKA CONNECT 导入/导出数据作为事件流&lt;br&gt;
 可能在关系数据库或传统消息系统等现有系统中拥有大量数据，以及许多已经使用这些系统的应用程序。Kafka Connect 允许不断地从外部系统摄取数据到 Kafka，反之亦然。因此，将现有的系统与Kafka集成是非常容易的。为了使这个过程更容易，Kafka 社区提供了很多连接器。&lt;br&gt;
-查看 &lt;a href=&#34;https://kafka.apache.org/documentation/#connect&#34;&gt;Kafka Connect 部分&lt;/a&gt;，了解更多关于如何导入/导出数据到/出 Kafka。&lt;/li&gt;
-&lt;li&gt;用 KAFKA 流处理事件&lt;br&gt;
-一旦数据作为事件存储在 Kafka 中，就可以使用 Kafka Streams 客户端库处理数据。它允许实现关键任务实时应用程序和微服务，其中输入和/或输出数据存储在Kafka主题中。Kafka Streams 结合了在客户端编写和部署标准 Java 和 Scala 应用程序的简便性以及 Kafka 服务器端集群技术的优势，使这些应用程序具有高度可伸缩性，弹性，容错性和分布式性。 该库支持一次精确处理，有状态操作和聚合，开窗，联接，基于事件时间的处理等等。&lt;/li&gt;
+查看 &lt;a href=&#34;https://kafka.apache.org/documentation/#connect&#34;&gt;Kafka Connect 部分&lt;/a&gt;，了解更多关于如何导入/导出数据到/出 Kafka。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;用 KAFKA 流处理事件&lt;br&gt;
+一旦数据作为事件存储在 Kafka 中，就可以使用 Kafka Streams 客户端库处理数据。它允许实现关键任务实时应用程序和微服务，其中输入和/或输出数据存储在Kafka主题中。Kafka Streams 结合了在客户端编写和部署标准 Java 和 Scala 应用程序的简便性以及 Kafka 服务器端集群技术的优势，使这些应用程序具有高度可伸缩性，弹性，容错性和分布式性。 该库支持一次精确处理，有状态操作和聚合，开窗，联接，基于事件时间的处理等等。&lt;/p&gt;
+&lt;/li&gt;
 &lt;/ol&gt;
 &lt;p&gt;下面是如何实现流行的WordCount算法:&lt;/p&gt;
 &lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;KStream&amp;lt;String, String&amp;gt; textLines = builder.stream(&amp;quot;quickstart-events&amp;quot;);
@@ -668,7 +837,7 @@ KTable&amp;lt;String, Long&amp;gt; wordCounts = textLines
 wordCounts.toStream().to(&amp;quot;output-topic&amp;quot;), Produced.with(Serdes.String(), Serdes.Long()));
 &lt;/code&gt;&lt;/pre&gt;
 &lt;p&gt;&lt;a href=&#34;https://kafka.apache.org/25/documentation/streams/quickstart&#34;&gt;Kafka Stream Demo&lt;/a&gt; 和&lt;a href=&#34;https://kafka.apache.org/25/documentation/streams/tutorial&#34;&gt;应用程序开发教程&lt;/a&gt;演示了如何编写和运行这样的流应用程序。&lt;/p&gt;
-&lt;ol&gt;
+&lt;ol start=&#34;8&#34;&gt;
 &lt;li&gt;终止 KAFKA&lt;/li&gt;
 &lt;/ol&gt;
 &lt;ul&gt;
@@ -676,7 +845,7 @@ wordCounts.toStream().to(&amp;quot;output-topic&amp;quot;), Produced.with(Serdes
 &lt;li&gt;用 Ctrl-C 停止 Kafka 代理。&lt;/li&gt;
 &lt;li&gt;最后，按 Ctrl-C 停止 ZooKeeper 服务器。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;如果还想删除本地 Kafka 环境的任何数据，包括已经创建事件，只需运行命令:&lt;/p&gt;
+&lt;p&gt;如果还想删除本地 Kafka 环境的任何数据，包括已创建事件，只需运行命令:&lt;/p&gt;
 &lt;pre&gt;&lt;code class=&#34;language-sh&#34;&gt;$ rm -rf /tmp/kafka-logs /tmp/zookeeper
 &lt;/code&gt;&lt;/pre&gt;
 ">Kafka（一） 入门</a>
