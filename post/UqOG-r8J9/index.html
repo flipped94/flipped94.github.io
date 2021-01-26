@@ -8,7 +8,7 @@
 <meta name="keywords" content="FLIPPED Android">
 <meta name="description" content="The higher I got, the more amazed I was by the view.">
 <meta name="theme-color" content="#000">
-<title>关于 | Flipped&#39;s Blog</title>
+<title>Kafka（三）Producer | Flipped&#39;s Blog</title>
 <link rel="shortcut icon" href="/favicon.ico?v=1611643454377">
 <link rel="stylesheet" href="/media/css/gemini.css">
 <link rel="stylesheet" href="/media/fonts/font-awesome.css">
@@ -38,8 +38,8 @@
 
 
 
-  <meta name="description" content="关于" />
-  <meta name="keywords" content="" />
+  <meta name="description" content="Kafka（三）Producer" />
+  <meta name="keywords" content="Kafka" />
 </head>
 
 <body>
@@ -248,10 +248,14 @@
     <ul class="markdownIt-TOC">
 <li>
 <ul>
-<li><a href="#%E5%85%B3%E4%BA%8E%E6%9C%AC%E7%AB%99">🏠 关于本站</a></li>
-<li><a href="#%E5%8D%9A%E4%B8%BB%E6%98%AF%E8%B0%81">👨‍💻 博主是谁</a></li>
-<li><a href="#%E5%85%B4%E8%B6%A3%E7%88%B1%E5%A5%BD">⛹ 兴趣爱好</a></li>
-<li><a href="#%E8%81%94%E7%B3%BB%E6%88%91%E5%91%80">📬 联系我呀</a></li>
+<li><a href="#producer-%E8%AE%BE%E8%AE%A1">Producer 设计</a>
+<ul>
+<li><a href="#%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1">负载均衡</a></li>
+<li><a href="#%E5%BC%82%E6%AD%A5%E5%8F%91%E9%80%81">异步发送</a></li>
+</ul>
+</li>
+<li><a href="#producer-api">Producer API</a></li>
+<li><a href="#%E6%B6%88%E6%81%AF%E4%BC%A0%E9%80%92%E4%BF%9D%E9%9A%9C">消息传递保障</a></li>
 </ul>
 </li>
 </ul>
@@ -519,8 +523,8 @@
           <div class="section bg-color post post-page">
             <section class="post-header">
   <h1 class="post-title">
-    <a class="post-title-link" href="https://flipped94.github.io/post/about/">
-      关于
+    <a class="post-title-link" href="https://flipped94.github.io/post/UqOG-r8J9/">
+      Kafka（三）Producer
     </a>
   </h1>
   <div class="post-meta">
@@ -528,33 +532,283 @@
     <span class="meta-item pc-show">
       <i class="fa fa-calendar-o"></i>
       <span class="language" data-lan="publish">发布于</span>
-      <span class="publish-time" data-t="2019-01-25 19:09:48">2019-01-25</span>
+      <span class="publish-time" data-t="2021-01-24 15:41:54">2021-01-24</span>
       <span class="post-meta-divider pc-show">|</span>
     </span>
     
     <span class="meta-item">
+      <i class="fa fa-folder-o"></i>
+      <span class="pc-show language" data-lan="category-in">分类于</span>
+      
+      
+      <a href="https://flipped94.github.io/tag/kafka/">
+        <span>Kafka</span>
+      </a>
+      
+      
+    </span>
+    <span class="post-meta-divider">|</span>
+    
+    <span class="meta-item">
       <i class="fa fa-clock-o"></i>
-      <span>1<span class="language" data-lan="minute">分钟</span></span>
+      <span>14<span class="language" data-lan="minute">分钟</span></span>
     </span>
     <span class="meta-item">
       <span class="post-meta-divider">|</span>
       <i class="fa fa-file-word-o"></i>
-      <span>31<span class="pc-show language" data-lan="words">字数</span></span>
+      <span>3076<span class="pc-show language" data-lan="words">字数</span></span>
     </span>
     
   </div>
 </section>
             <div class="post-body next-md-body" id="post_body">
-              <blockquote>
-<p>欢迎来到我的小站呀，很高兴遇见你！🤝</p>
-</blockquote>
-<h2 id="关于本站">🏠 关于本站</h2>
-<h2 id="博主是谁">👨‍💻 博主是谁</h2>
-<h2 id="兴趣爱好">⛹ 兴趣爱好</h2>
-<h2 id="联系我呀">📬 联系我呀</h2>
+              <p>本文主要关于 Kafka Producer 设计和 Producer API。</p>
+<h2 id="producer-设计">Producer 设计</h2>
+<h3 id="负载均衡">负载均衡</h3>
+<p>Producer 直接将数据发送给作为分区领导者的代理，而不需要任何介入的路由层。为了帮助 Producer 做到这一点，所有的 Kafka 节点可以在任何时间，响应关于哪些服务器处于活动状态以及主题的分区的领导者在哪里的元数据请求，以便 Producer 适当地发送请求。</p>
+<p>客户端控制将消息发布到哪个分区，这可以是随机完成的（随机负载均衡），也可以通过某些语义分区函数完成。Kafka 提供语义分区的接口，允许用户指定要分区的键，并使用该键对分区进行散列(如果需要，还可以覆盖分区函数)。</p>
+<h3 id="异步发送">异步发送</h3>
+<p>批处理是效率的主要驱动之一，为了实现批处理，Producer 在内存中积累数据，并在单个请求批量中发送。可以将批处理配置为累积不超过固定数量的消息，等待时间不超过某个固定延迟范围(比如64k或10毫秒)。这样就可以累积更多的字节来发送，并减少服务器的 I/O 操作。这个缓冲区是可配置的，它提供了一种机制，可以用少量额外的延迟来换取更好的吞吐量。</p>
+<h2 id="producer-api">Producer API</h2>
+<p>Producer API 允许应用程序向Kafka集群中的主题发送数据流。需要以下 Maven 依赖：</p>
+<pre><code class="language-xml">&lt;dependency&gt;
+    &lt;groupId&gt;org.apache.kafka&lt;/groupId&gt;
+    &lt;artifactId&gt;kafka-clients&lt;/artifactId&gt;
+    &lt;version&gt;2.7.0&lt;/version&gt;
+&lt;/dependency&gt;
+</code></pre>
+<p>Kafka 客户端，将记录发布到 Kafka 集群。 Producer 是线程安全的，并且跨线程共享单个 Producer 实例通常比拥有多个实例要快。<br>
+下面是一个简单的示例，发送连续数字的字符串作为键/值对的记录。</p>
+<pre><code class="language-java">public static void producerSend() {
+        Properties props = new Properties();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, &quot;localhost:9092&quot;);
+        props.put(ProducerConfig.ACKS_CONFIG, &quot;all&quot;);
+        props.put(ProducerConfig.RETRIES_CONFIG, &quot;0&quot;);
+        props.put(ProducerConfig.BATCH_SIZE_CONFIG, &quot;16384&quot;);
+        props.put(ProducerConfig.LINGER_MS_CONFIG, &quot;1&quot;);
+        props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, &quot;33554432&quot;);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, &quot;org.apache.kafka.common.serialization.StringSerializer&quot;);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, &quot;org.apache.kafka.common.serialization.StringSerializer&quot;);
+        // Producer的主对象
+        Producer&lt;String, String&gt; producer = new KafkaProducer&lt;&gt;(props);
+
+        for (int i = 0; i &lt; 100; i++) {
+            // ProducerRecord：消息对象
+            producer.send(new ProducerRecord&lt;String, String&gt;(&quot;test-topic&quot;, &quot;key-&quot; + i, &quot;value-&quot; + i));
+        }
+        // 所有的通道打开都需要关闭
+        producer.close();
+}
+</code></pre>
+<p>Producer 由一个缓冲区和一个后台 I/O 线程组成，前者保存尚未传输到服务器的记录，后者负责将这些记录转换为请求并传输到集群。如果在使用之后没有关闭 Producer，这些资源就会泄漏。</p>
+<p><code>send()</code> 方法是异步的。调用时，它将记录添加到等待记录发送的缓冲区中并立即返回。这允许 Producer 批量处理记录以提高效率。</p>
+<p><code>acks</code> 配置控制请求完成的条件。指定“all”设置将导致提交记录时完全阻塞，这是最慢但最持久的设置。</p>
+<p>如果请求失败，Producer 可以自动重试，但由于将 <code>retries</code> 指定为0，所以它不会重试。启用重试还增加了重复的可能性(有关消息传递语义的详细信息，请参阅文档)。</p>
+<p>Producer 为每个分区维护未发送记录的缓冲区。这些缓冲区的大小由 <code>batch.size</code> 配置指定。增大这个值可能会导致更多的批处理，但需要更多的内存(因为通常为每个活动分区设置一个这样的缓冲区)。</p>
+<p>默认情况下，即使缓冲区中有额外的未使用空间，也可以立即发送缓冲区。如果想减少请求的数量，可以设置 <code>linger.ms</code> 的值大于0，表示 Producer 在发送请求之前等待的毫秒数，希望有更多的记录填充缓冲区。例如，上面的代码片段中，因为将 <code>linger.ms</code> 设置为1毫秒，所以可能所有100条记录都将在一个请求中发送，。但是，如果没有填满缓冲区，这个设置会给请求增加1毫秒的延迟。到达缓冲区时间接近的记录通常会在一个批处理，即使 <code>linger.ms</code> 的值为0，因此，在大重载下，会忽视 <code>linger.ms</code> 配置；将此配置设置为大于0的值可以在不处于最大负载下时导致更少、更有效的请求，代价是少量的延迟。</p>
+<p><code>buffer.memory</code> 控制 Producer 可用来缓冲的内存总量。如果记录的发送速度比它们传输到服务器的速度快，那么这个缓冲区空间将被耗尽。当缓冲区空间耗尽时，将阻塞其他的 <code>send</code> 调用。阻塞时间的阈值由 <code>max.block.ms</code> 决定，如果超市会抛出 <code>TimeoutException</code> 异常。</p>
+<p><code>key.serializer</code> 和 <code>value.serializer</code> 表示如何将 <code>ProducerRecord</code> 提供的键和值对象转换为字节。对于简单的字符串或字节类型，可以使用内置的 <code>ByteArraySerializer</code> 或 <code>StringSerializer</code>。</p>
+<p>从Kafka 0.11开始，KafkaProducer 支持另外两种模式：幂等 Producer 和 事务 Producer。幂等 Producer 增强了 Kafka 的交付语义，从至少一次交付（at least once）到精确一次交付（exactly once）。特别是 Producer 重试将不再引入重复。事务 Producer 允许应用程序自动地将消息发送到多个分区(和主题!)。</p>
+<p><code>enable.idempotence</code> 设置为 <code>true</code> 开启等幂。开启后，<code>retries</code> 配置将默认为<code>Integer.MAX_VALUE</code> ，<code>acks</code> 配置将默认为 <code>all</code>。幂等 Producer 不需要修改API，因此不需要修改现有的应用程序来利用这个特性。</p>
+<p>为了利用幂等 Producer，必须避免应用程序级的重发，因为这些不能重复。因此，如果应用程序启用幂等性，建议不设置重试配置，因为它将默认为 <code>Integer.MAX_VALUE</code>。此外，如果 <code>send(ProducerRecord)</code> 在无限重试的情况下返回一个错误(例如，消息在发送之前在缓冲区中过期)，那么建议关闭 Producer 并检查最后生成的消息的内容，确保它没有重复。最后，Producer 只能保证在单个会话中发送的消息的幂等性。</p>
+<p>要使用事务 Producer，必须设置 <code>transactional.id</code>。设置后，幂等性就会自动与幂等性所依赖的 Producer 配置一起启用。此外，事务中包含的主题应该配置持久性。特别是 <code>replication.factor</code> 应该至少为3，这些主题的 <code>min.insync.replicas</code> 应该设置为2。最后，为了从端到端实现事务保证，Consumer 也必须被配置为只读取已提交的消息。</p>
+<p><code>transactional.id</code> 的目的是在单个 Producer 实例的多个会话之间启用事务恢复。它通常是从分区的、有状态的应用程序中的shard标识符派生的。因此，对于在分区应用程序中运行的每个生产者实例，它应该是唯一的。</p>
+<p>所有新的事务 api 都是阻塞的，并在失败时抛出异常。下面的示例说明了如何使用新api。它与上面的示例类似，只是所有100条消息都是一个事务的一部分。</p>
+<pre><code class="language-java">Properties props = new Properties();
+ props.put(&quot;bootstrap.servers&quot;, &quot;localhost:9092&quot;);
+ props.put(&quot;transactional.id&quot;, &quot;my-transactional-id&quot;);
+ Producer&lt;String, String&gt; producer = new KafkaProducer&lt;&gt;(props, new StringSerializer(), new StringSerializer());
+
+ producer.initTransactions();
+
+ try {
+     producer.beginTransaction();
+     for (int i = 0; i &lt; 100; i++)
+         producer.send(new ProducerRecord&lt;&gt;(&quot;my-topic&quot;, Integer.toString(i), Integer.toString(i)));
+     producer.commitTransaction();
+ } catch (ProducerFencedException | OutOfOrderSequenceException | AuthorizationException e) {
+     // We can't recover from these exceptions, so our only option is to close the producer and exit.
+     producer.close();
+ } catch (KafkaException e) {
+     // For all other exceptions, just abort the transaction and try again.
+     producer.abortTransaction();
+ }
+ producer.close();
+</code></pre>
+<p>正如示例中所示，每个 Producer 只能有一个打开的事务。在 <code>beginTransaction()</code> 和 <code>commitTransaction()</code> 调用之间发送的所有消息都将是单个事务的一部分。设置了 <code>transactional.id</code> 时，Producer 发送的所有消息必须是事务的一部分。</p>
+<p>事务 Producer 使用异常传达错误状态。特别是，不需要为 <code>producer.send()</code> 设置回调或 在返回的 <code>Future</code> 上调用 <code>.get()</code>：如果任何 <code>producer.send()</code> 或事务调用在事务期间出现不可恢复的错误，将引发 KafkaException。</p>
+<p>通过在收到 KafkaException 时调用 <code>producer.send()</code>，可以确保任何成功的写入都标记为已中止，从而保留事务性保证。</p>
+<p>此客户端可以与版本 0.10.0 或更高版本的代理进行通信。较旧或较新的代理可能不支持某些客户端功能。例如，事务 API 需要代理版本 0.11.0 或更新版本。调用正在运行的代理版本中不可用的 API 时，将收到不受支持的返回异常。<br>
+除了第一个示例中的异步发送模式外，还有同步发送（异步阻塞）和异步回调两种模式。<br>
+<strong>同步发送（异步阻塞）</strong><br>
+同步发送与异步发送的区别在于发送后的操作，由于每次发送后都调用了 <code>Future#get</code>，相当于阻塞在该处，代码如下所示。</p>
+<pre><code class="language-java">/**
+     * 同步发送（异步阻塞）
+     * 
+     * @throws ExecutionException
+     * @throws InterruptedException
+*/
+public static void producerSyncSend() throws InterruptedException, ExecutionException {
+        Properties props = new Properties();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, &quot;localhost:9092&quot;);
+        props.put(ProducerConfig.ACKS_CONFIG, &quot;all&quot;);
+        props.put(ProducerConfig.RETRIES_CONFIG, &quot;0&quot;);
+        props.put(ProducerConfig.BATCH_SIZE_CONFIG, &quot;16384&quot;);
+        props.put(ProducerConfig.LINGER_MS_CONFIG, &quot;1&quot;);
+        props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, &quot;33554432&quot;);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, &quot;org.apache.kafka.common.serialization.StringSerializer&quot;);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+                &quot;org.apache.kafka.common.serialization.StringSerializer&quot;);
+        // Producer的主对象
+        Producer&lt;String, String&gt; producer = new KafkaProducer&lt;&gt;(props);
+
+        for (int i = 0; i &lt; 100; i++) {
+            // ProducerRecord：消息对象
+            Future&lt;RecordMetadata&gt; future = producer
+                    .send(new ProducerRecord&lt;String, String&gt;(&quot;test-topic&quot;, &quot;key-&quot; + i, &quot;value-&quot; + i));
+            RecordMetadata recordMetadata = future.get();
+            System.out.println(&quot;partition : &quot; + recordMetadata.partition() + &quot;, offset : &quot; + recordMetadata.offset());
+        }
+        // 所有的通道打开都需要关闭
+        producer.close();
+}
+</code></pre>
+<p><strong>异步回调发送</strong></p>
+<pre><code class="language-java"> /**
+     * 异步发送带回调
+     */
+    public static void producerSendWithCallback() {
+        Properties props = new Properties();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, &quot;localhost:9092&quot;);
+        props.put(ProducerConfig.ACKS_CONFIG, &quot;all&quot;);
+        props.put(ProducerConfig.RETRIES_CONFIG, &quot;0&quot;);
+        props.put(ProducerConfig.BATCH_SIZE_CONFIG, &quot;16384&quot;);
+        props.put(ProducerConfig.LINGER_MS_CONFIG, &quot;1&quot;);
+        props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, &quot;33554432&quot;);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, &quot;org.apache.kafka.common.serialization.StringSerializer&quot;);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+                &quot;org.apache.kafka.common.serialization.StringSerializer&quot;);
+        // Producer的主对象
+        Producer&lt;String, String&gt; producer = new KafkaProducer&lt;&gt;(props);
+
+        for (int i = 0; i &lt; 100; i++) {
+            // ProducerRecord：消息对象
+            producer.send(new ProducerRecord&lt;String, String&gt;(&quot;test-topic&quot;, &quot;key-&quot; + i, &quot;value-&quot; + i), new Callback() {
+                @Override
+                public void onCompletion(RecordMetadata recordMetadata, Exception e) {
+                    System.out.println(
+                            &quot;partition : &quot; + recordMetadata.partition() + &quot;, offset : &quot; + recordMetadata.offset());
+                };
+            });
+        }
+        // 所有的通道打开都需要关闭
+        producer.close();
+}
+</code></pre>
+<p>前面的示例中，每个 Partition 的记录是不确定。载均衡的目的是将消息尽可能平均分配，尽可能将消息平均分配给所有分区<br>
+<strong>自定义 Partition 负载均衡</strong><br>
+自定义 Partition， 实现 <code>Partitioner</code> 接口，自己实现分区方法。<br>
+在创建 <code>test-topic</code> 时，指定了3个分区，这里简单的对 key 做处理之后，取余。</p>
+<pre><code class="language-java">// 自定义 Partition
+public class SamplePartition implements Partitioner {
+
+    @Override
+    public void configure(Map&lt;String, ?&gt; arg0) {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
+    public void close() {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
+    public int partition(String topic, Object key, byte[] keyBytes, Object Value, byte[] valueBytes, Cluster cluster) {
+        String keyStr = key + &quot;&quot;;
+        String keyInt = keyStr.substring(4);
+        System.out.println(&quot;======== keyInt ==========&quot; + keyInt);
+        int i = Integer.parseInt(keyInt);
+        System.out.println(&quot;======== i ==========&quot; + i);
+
+        return i % 3;
+    }
+}
+</code></pre>
+<pre><code class="language-java">/**
+     * 使用自定义 Partition
+     * 异步发送带回调和Partition
+*/
+public static void producerSendWithCallbackAndPartition() {
+        Properties props = new Properties();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, &quot;localhost:9092&quot;);
+        props.put(ProducerConfig.ACKS_CONFIG, &quot;all&quot;);
+        props.put(ProducerConfig.RETRIES_CONFIG, &quot;0&quot;);
+        props.put(ProducerConfig.BATCH_SIZE_CONFIG, &quot;16384&quot;);
+        props.put(ProducerConfig.LINGER_MS_CONFIG, &quot;1&quot;);
+        props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, &quot;33554432&quot;);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, &quot;org.apache.kafka.common.serialization.StringSerializer&quot;);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+                &quot;org.apache.kafka.common.serialization.StringSerializer&quot;);
+        props.put(ProducerConfig.PARTITIONER_CLASS_CONFIG, &quot;work.flipped.kafka.producer.SamplePartition&quot;);
+        // Producer的主对象
+        Producer&lt;String, String&gt; producer = new KafkaProducer&lt;&gt;(props);
+
+        for (int i = 0; i &lt; 100; i++) {
+            // ProducerRecord：消息对象
+            producer.send(new ProducerRecord&lt;String, String&gt;(&quot;test-topic&quot;, &quot;key-&quot; + i, &quot;value-&quot; + i), new Callback() {
+                @Override
+                public void onCompletion(RecordMetadata recordMetadata, Exception e) {
+                    System.out.println(
+                            &quot;partition : &quot; + recordMetadata.partition() + &quot;, offset : &quot; + recordMetadata.offset());
+                };
+            });
+        }
+        // 所有的通道打开都需要关闭
+        producer.close();
+}
+</code></pre>
+<p>三个 Partition 的记录几乎一样多，分别为33，33，34，运行结果如图所示。<img src="https://img.flipped.work/img/20210124212456.png"/></p>
+<h2 id="消息传递保障">消息传递保障</h2>
+<p>在下一章介绍 Kafka Consumer后，继续此内容。</p>
 
             </div>
             
+            
+              <div class="post-footer">
+  <ul class="post-copyright">
+    <li class="post-copyright-author">
+      <strong class="language" data-lan="author">本文作者：</strong>
+      Flipped
+    </li>
+    <li class="post-copyright-link">
+      <strong class="language" data-lan="link">本文链接：</strong>
+      <a href="https://flipped94.github.io/post/UqOG-r8J9/" title="Kafka（三）Producer">https://flipped94.github.io/post/UqOG-r8J9/</a>
+    </li>
+    <li class="post-copyright-license">
+      <strong class="language" data-lan="copyright">版权声明： </strong>
+      本博客所有文章除特别声明外，均采用<a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fa fa-fw fa-creative-commons"></i> BY-NC-SA</a> 许可协议。转载请注明出处！
+    </li>
+  </ul>
+  <div class="tags">
+    
+      <a href="https://flipped94.github.io/tag/kafka/"># Kafka</a>
+    
+  </div>
+  <div class="nav">
+    <div class="nav-prev">
+      
+    </div>
+    <div class="nav-next">
+      
+        <a class="nav-pc-next" title="Kafka（二）Admin API" href="https://flipped94.github.io/post/qqGWSVvBP/">Kafka（二）Admin API</a>
+        <a class="nav-mobile-next" title="Kafka（二）Admin API" href="https://flipped94.github.io/post/qqGWSVvBP/">下一篇</a>
+        <i class="fa fa-chevron-right"></i>
+      
+    </div>
+  </div>
+</div>
             
             
   <script src="https://cdn.jsdelivr.net/npm/valine@1.4.14/dist/Valine.min.js"></script>

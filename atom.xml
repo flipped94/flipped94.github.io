@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://flipped94.github.io</id>
     <title>Flipped&apos;s Blog</title>
-    <updated>2021-01-24T07:06:43.156Z</updated>
+    <updated>2021-01-26T06:44:25.543Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://flipped94.github.io"/>
     <link rel="self" href="https://flipped94.github.io/atom.xml"/>
@@ -10,6 +10,224 @@
     <logo>https://flipped94.github.io/images/avatar.png</logo>
     <icon>https://flipped94.github.io/favicon.ico</icon>
     <rights>All rights reserved 2021, Flipped&apos;s Blog</rights>
+    <entry>
+        <title type="html"><![CDATA[Kafka（三）Producer]]></title>
+        <id>https://flipped94.github.io/post/UqOG-r8J9/</id>
+        <link href="https://flipped94.github.io/post/UqOG-r8J9/">
+        </link>
+        <updated>2021-01-24T07:41:54.000Z</updated>
+        <content type="html"><![CDATA[<p>本文主要关于 Kafka Producer 设计和 Producer API。</p>
+<h2 id="producer-设计">Producer 设计</h2>
+<h3 id="负载均衡">负载均衡</h3>
+<p>Producer 直接将数据发送给作为分区领导者的代理，而不需要任何介入的路由层。为了帮助 Producer 做到这一点，所有的 Kafka 节点可以在任何时间，响应关于哪些服务器处于活动状态以及主题的分区的领导者在哪里的元数据请求，以便 Producer 适当地发送请求。</p>
+<p>客户端控制将消息发布到哪个分区，这可以是随机完成的（随机负载均衡），也可以通过某些语义分区函数完成。Kafka 提供语义分区的接口，允许用户指定要分区的键，并使用该键对分区进行散列(如果需要，还可以覆盖分区函数)。</p>
+<h3 id="异步发送">异步发送</h3>
+<p>批处理是效率的主要驱动之一，为了实现批处理，Producer 在内存中积累数据，并在单个请求批量中发送。可以将批处理配置为累积不超过固定数量的消息，等待时间不超过某个固定延迟范围(比如64k或10毫秒)。这样就可以累积更多的字节来发送，并减少服务器的 I/O 操作。这个缓冲区是可配置的，它提供了一种机制，可以用少量额外的延迟来换取更好的吞吐量。</p>
+<h2 id="producer-api">Producer API</h2>
+<p>Producer API 允许应用程序向Kafka集群中的主题发送数据流。需要以下 Maven 依赖：</p>
+<pre><code class="language-xml">&lt;dependency&gt;
+    &lt;groupId&gt;org.apache.kafka&lt;/groupId&gt;
+    &lt;artifactId&gt;kafka-clients&lt;/artifactId&gt;
+    &lt;version&gt;2.7.0&lt;/version&gt;
+&lt;/dependency&gt;
+</code></pre>
+<p>Kafka 客户端，将记录发布到 Kafka 集群。 Producer 是线程安全的，并且跨线程共享单个 Producer 实例通常比拥有多个实例要快。<br>
+下面是一个简单的示例，发送连续数字的字符串作为键/值对的记录。</p>
+<pre><code class="language-java">public static void producerSend() {
+        Properties props = new Properties();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, &quot;localhost:9092&quot;);
+        props.put(ProducerConfig.ACKS_CONFIG, &quot;all&quot;);
+        props.put(ProducerConfig.RETRIES_CONFIG, &quot;0&quot;);
+        props.put(ProducerConfig.BATCH_SIZE_CONFIG, &quot;16384&quot;);
+        props.put(ProducerConfig.LINGER_MS_CONFIG, &quot;1&quot;);
+        props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, &quot;33554432&quot;);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, &quot;org.apache.kafka.common.serialization.StringSerializer&quot;);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, &quot;org.apache.kafka.common.serialization.StringSerializer&quot;);
+        // Producer的主对象
+        Producer&lt;String, String&gt; producer = new KafkaProducer&lt;&gt;(props);
+
+        for (int i = 0; i &lt; 100; i++) {
+            // ProducerRecord：消息对象
+            producer.send(new ProducerRecord&lt;String, String&gt;(&quot;test-topic&quot;, &quot;key-&quot; + i, &quot;value-&quot; + i));
+        }
+        // 所有的通道打开都需要关闭
+        producer.close();
+}
+</code></pre>
+<p>Producer 由一个缓冲区和一个后台 I/O 线程组成，前者保存尚未传输到服务器的记录，后者负责将这些记录转换为请求并传输到集群。如果在使用之后没有关闭 Producer，这些资源就会泄漏。</p>
+<p><code>send()</code> 方法是异步的。调用时，它将记录添加到等待记录发送的缓冲区中并立即返回。这允许 Producer 批量处理记录以提高效率。</p>
+<p><code>acks</code> 配置控制请求完成的条件。指定“all”设置将导致提交记录时完全阻塞，这是最慢但最持久的设置。</p>
+<p>如果请求失败，Producer 可以自动重试，但由于将 <code>retries</code> 指定为0，所以它不会重试。启用重试还增加了重复的可能性(有关消息传递语义的详细信息，请参阅文档)。</p>
+<p>Producer 为每个分区维护未发送记录的缓冲区。这些缓冲区的大小由 <code>batch.size</code> 配置指定。增大这个值可能会导致更多的批处理，但需要更多的内存(因为通常为每个活动分区设置一个这样的缓冲区)。</p>
+<p>默认情况下，即使缓冲区中有额外的未使用空间，也可以立即发送缓冲区。如果想减少请求的数量，可以设置 <code>linger.ms</code> 的值大于0，表示 Producer 在发送请求之前等待的毫秒数，希望有更多的记录填充缓冲区。例如，上面的代码片段中，因为将 <code>linger.ms</code> 设置为1毫秒，所以可能所有100条记录都将在一个请求中发送，。但是，如果没有填满缓冲区，这个设置会给请求增加1毫秒的延迟。到达缓冲区时间接近的记录通常会在一个批处理，即使 <code>linger.ms</code> 的值为0，因此，在大重载下，会忽视 <code>linger.ms</code> 配置；将此配置设置为大于0的值可以在不处于最大负载下时导致更少、更有效的请求，代价是少量的延迟。</p>
+<p><code>buffer.memory</code> 控制 Producer 可用来缓冲的内存总量。如果记录的发送速度比它们传输到服务器的速度快，那么这个缓冲区空间将被耗尽。当缓冲区空间耗尽时，将阻塞其他的 <code>send</code> 调用。阻塞时间的阈值由 <code>max.block.ms</code> 决定，如果超市会抛出 <code>TimeoutException</code> 异常。</p>
+<p><code>key.serializer</code> 和 <code>value.serializer</code> 表示如何将 <code>ProducerRecord</code> 提供的键和值对象转换为字节。对于简单的字符串或字节类型，可以使用内置的 <code>ByteArraySerializer</code> 或 <code>StringSerializer</code>。</p>
+<p>从Kafka 0.11开始，KafkaProducer 支持另外两种模式：幂等 Producer 和 事务 Producer。幂等 Producer 增强了 Kafka 的交付语义，从至少一次交付（at least once）到精确一次交付（exactly once）。特别是 Producer 重试将不再引入重复。事务 Producer 允许应用程序自动地将消息发送到多个分区(和主题!)。</p>
+<p><code>enable.idempotence</code> 设置为 <code>true</code> 开启等幂。开启后，<code>retries</code> 配置将默认为<code>Integer.MAX_VALUE</code> ，<code>acks</code> 配置将默认为 <code>all</code>。幂等 Producer 不需要修改API，因此不需要修改现有的应用程序来利用这个特性。</p>
+<p>为了利用幂等 Producer，必须避免应用程序级的重发，因为这些不能重复。因此，如果应用程序启用幂等性，建议不设置重试配置，因为它将默认为 <code>Integer.MAX_VALUE</code>。此外，如果 <code>send(ProducerRecord)</code> 在无限重试的情况下返回一个错误(例如，消息在发送之前在缓冲区中过期)，那么建议关闭 Producer 并检查最后生成的消息的内容，确保它没有重复。最后，Producer 只能保证在单个会话中发送的消息的幂等性。</p>
+<p>要使用事务 Producer，必须设置 <code>transactional.id</code>。设置后，幂等性就会自动与幂等性所依赖的 Producer 配置一起启用。此外，事务中包含的主题应该配置持久性。特别是 <code>replication.factor</code> 应该至少为3，这些主题的 <code>min.insync.replicas</code> 应该设置为2。最后，为了从端到端实现事务保证，Consumer 也必须被配置为只读取已提交的消息。</p>
+<p><code>transactional.id</code> 的目的是在单个 Producer 实例的多个会话之间启用事务恢复。它通常是从分区的、有状态的应用程序中的shard标识符派生的。因此，对于在分区应用程序中运行的每个生产者实例，它应该是唯一的。</p>
+<p>所有新的事务 api 都是阻塞的，并在失败时抛出异常。下面的示例说明了如何使用新api。它与上面的示例类似，只是所有100条消息都是一个事务的一部分。</p>
+<pre><code class="language-java">Properties props = new Properties();
+ props.put(&quot;bootstrap.servers&quot;, &quot;localhost:9092&quot;);
+ props.put(&quot;transactional.id&quot;, &quot;my-transactional-id&quot;);
+ Producer&lt;String, String&gt; producer = new KafkaProducer&lt;&gt;(props, new StringSerializer(), new StringSerializer());
+
+ producer.initTransactions();
+
+ try {
+     producer.beginTransaction();
+     for (int i = 0; i &lt; 100; i++)
+         producer.send(new ProducerRecord&lt;&gt;(&quot;my-topic&quot;, Integer.toString(i), Integer.toString(i)));
+     producer.commitTransaction();
+ } catch (ProducerFencedException | OutOfOrderSequenceException | AuthorizationException e) {
+     // We can't recover from these exceptions, so our only option is to close the producer and exit.
+     producer.close();
+ } catch (KafkaException e) {
+     // For all other exceptions, just abort the transaction and try again.
+     producer.abortTransaction();
+ }
+ producer.close();
+</code></pre>
+<p>正如示例中所示，每个 Producer 只能有一个打开的事务。在 <code>beginTransaction()</code> 和 <code>commitTransaction()</code> 调用之间发送的所有消息都将是单个事务的一部分。设置了 <code>transactional.id</code> 时，Producer 发送的所有消息必须是事务的一部分。</p>
+<p>事务 Producer 使用异常传达错误状态。特别是，不需要为 <code>producer.send()</code> 设置回调或 在返回的 <code>Future</code> 上调用 <code>.get()</code>：如果任何 <code>producer.send()</code> 或事务调用在事务期间出现不可恢复的错误，将引发 KafkaException。</p>
+<p>通过在收到 KafkaException 时调用 <code>producer.send()</code>，可以确保任何成功的写入都标记为已中止，从而保留事务性保证。</p>
+<p>此客户端可以与版本 0.10.0 或更高版本的代理进行通信。较旧或较新的代理可能不支持某些客户端功能。例如，事务 API 需要代理版本 0.11.0 或更新版本。调用正在运行的代理版本中不可用的 API 时，将收到不受支持的返回异常。<br>
+除了第一个示例中的异步发送模式外，还有同步发送（异步阻塞）和异步回调两种模式。<br>
+<strong>同步发送（异步阻塞）</strong><br>
+同步发送与异步发送的区别在于发送后的操作，由于每次发送后都调用了 <code>Future#get</code>，相当于阻塞在该处，代码如下所示。</p>
+<pre><code class="language-java">/**
+     * 同步发送（异步阻塞）
+     * 
+     * @throws ExecutionException
+     * @throws InterruptedException
+*/
+public static void producerSyncSend() throws InterruptedException, ExecutionException {
+        Properties props = new Properties();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, &quot;localhost:9092&quot;);
+        props.put(ProducerConfig.ACKS_CONFIG, &quot;all&quot;);
+        props.put(ProducerConfig.RETRIES_CONFIG, &quot;0&quot;);
+        props.put(ProducerConfig.BATCH_SIZE_CONFIG, &quot;16384&quot;);
+        props.put(ProducerConfig.LINGER_MS_CONFIG, &quot;1&quot;);
+        props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, &quot;33554432&quot;);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, &quot;org.apache.kafka.common.serialization.StringSerializer&quot;);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+                &quot;org.apache.kafka.common.serialization.StringSerializer&quot;);
+        // Producer的主对象
+        Producer&lt;String, String&gt; producer = new KafkaProducer&lt;&gt;(props);
+
+        for (int i = 0; i &lt; 100; i++) {
+            // ProducerRecord：消息对象
+            Future&lt;RecordMetadata&gt; future = producer
+                    .send(new ProducerRecord&lt;String, String&gt;(&quot;test-topic&quot;, &quot;key-&quot; + i, &quot;value-&quot; + i));
+            RecordMetadata recordMetadata = future.get();
+            System.out.println(&quot;partition : &quot; + recordMetadata.partition() + &quot;, offset : &quot; + recordMetadata.offset());
+        }
+        // 所有的通道打开都需要关闭
+        producer.close();
+}
+</code></pre>
+<p><strong>异步回调发送</strong></p>
+<pre><code class="language-java"> /**
+     * 异步发送带回调
+     */
+    public static void producerSendWithCallback() {
+        Properties props = new Properties();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, &quot;localhost:9092&quot;);
+        props.put(ProducerConfig.ACKS_CONFIG, &quot;all&quot;);
+        props.put(ProducerConfig.RETRIES_CONFIG, &quot;0&quot;);
+        props.put(ProducerConfig.BATCH_SIZE_CONFIG, &quot;16384&quot;);
+        props.put(ProducerConfig.LINGER_MS_CONFIG, &quot;1&quot;);
+        props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, &quot;33554432&quot;);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, &quot;org.apache.kafka.common.serialization.StringSerializer&quot;);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+                &quot;org.apache.kafka.common.serialization.StringSerializer&quot;);
+        // Producer的主对象
+        Producer&lt;String, String&gt; producer = new KafkaProducer&lt;&gt;(props);
+
+        for (int i = 0; i &lt; 100; i++) {
+            // ProducerRecord：消息对象
+            producer.send(new ProducerRecord&lt;String, String&gt;(&quot;test-topic&quot;, &quot;key-&quot; + i, &quot;value-&quot; + i), new Callback() {
+                @Override
+                public void onCompletion(RecordMetadata recordMetadata, Exception e) {
+                    System.out.println(
+                            &quot;partition : &quot; + recordMetadata.partition() + &quot;, offset : &quot; + recordMetadata.offset());
+                };
+            });
+        }
+        // 所有的通道打开都需要关闭
+        producer.close();
+}
+</code></pre>
+<p>前面的示例中，每个 Partition 的记录是不确定。载均衡的目的是将消息尽可能平均分配，尽可能将消息平均分配给所有分区<br>
+<strong>自定义 Partition 负载均衡</strong><br>
+自定义 Partition， 实现 <code>Partitioner</code> 接口，自己实现分区方法。<br>
+在创建 <code>test-topic</code> 时，指定了3个分区，这里简单的对 key 做处理之后，取余。</p>
+<pre><code class="language-java">// 自定义 Partition
+public class SamplePartition implements Partitioner {
+
+    @Override
+    public void configure(Map&lt;String, ?&gt; arg0) {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
+    public void close() {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
+    public int partition(String topic, Object key, byte[] keyBytes, Object Value, byte[] valueBytes, Cluster cluster) {
+        String keyStr = key + &quot;&quot;;
+        String keyInt = keyStr.substring(4);
+        System.out.println(&quot;======== keyInt ==========&quot; + keyInt);
+        int i = Integer.parseInt(keyInt);
+        System.out.println(&quot;======== i ==========&quot; + i);
+
+        return i % 3;
+    }
+}
+</code></pre>
+<pre><code class="language-java">/**
+     * 使用自定义 Partition
+     * 异步发送带回调和Partition
+*/
+public static void producerSendWithCallbackAndPartition() {
+        Properties props = new Properties();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, &quot;localhost:9092&quot;);
+        props.put(ProducerConfig.ACKS_CONFIG, &quot;all&quot;);
+        props.put(ProducerConfig.RETRIES_CONFIG, &quot;0&quot;);
+        props.put(ProducerConfig.BATCH_SIZE_CONFIG, &quot;16384&quot;);
+        props.put(ProducerConfig.LINGER_MS_CONFIG, &quot;1&quot;);
+        props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, &quot;33554432&quot;);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, &quot;org.apache.kafka.common.serialization.StringSerializer&quot;);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+                &quot;org.apache.kafka.common.serialization.StringSerializer&quot;);
+        props.put(ProducerConfig.PARTITIONER_CLASS_CONFIG, &quot;work.flipped.kafka.producer.SamplePartition&quot;);
+        // Producer的主对象
+        Producer&lt;String, String&gt; producer = new KafkaProducer&lt;&gt;(props);
+
+        for (int i = 0; i &lt; 100; i++) {
+            // ProducerRecord：消息对象
+            producer.send(new ProducerRecord&lt;String, String&gt;(&quot;test-topic&quot;, &quot;key-&quot; + i, &quot;value-&quot; + i), new Callback() {
+                @Override
+                public void onCompletion(RecordMetadata recordMetadata, Exception e) {
+                    System.out.println(
+                            &quot;partition : &quot; + recordMetadata.partition() + &quot;, offset : &quot; + recordMetadata.offset());
+                };
+            });
+        }
+        // 所有的通道打开都需要关闭
+        producer.close();
+}
+</code></pre>
+<p>三个 Partition 的记录几乎一样多，分别为33，33，34，运行结果如图所示。<img src="https://img.flipped.work/img/20210124212456.png"/></p>
+<h2 id="消息传递保障">消息传递保障</h2>
+<p>在下一章介绍 Kafka Consumer后，继续此内容。</p>
+]]></content>
+    </entry>
     <entry>
         <title type="html"><![CDATA[Kafka（二）Admin API]]></title>
         <id>https://flipped94.github.io/post/qqGWSVvBP/</id>
@@ -1299,68 +1517,6 @@ public String take() throws InterruptedException {
 <li>在同步代码中执行 sleep 方法时，并不会释放 monitor 锁，但执行 wait 方法时会主动释放 monitor 锁。</li>
 <li>sleep 方法中会要求必须定义一个时间，时间到期后会主动恢复，而对于没有参数的 wait 方法而言，意味着永久等待，直到被中断或被唤醒才能恢复，它并不会主动恢复。</li>
 <li>wait/notify 是 Object 类的方法，而 sleep 是 Thread 类的方法。</li>
-</ul>
-]]></content>
-    </entry>
-    <entry>
-        <title type="html"><![CDATA[线程状态]]></title>
-        <id>https://flipped94.github.io/post/gohIUX3YT/</id>
-        <link href="https://flipped94.github.io/post/gohIUX3YT/">
-        </link>
-        <updated>2021-01-01T08:19:20.000Z</updated>
-        <content type="html"><![CDATA[<h2 id="线程-6-种状态">线程 6 种状态</h2>
-<p>线程有自己的生命周期，在 Java 中线程的生命周期中一共有 6 种状态，转换图如下所示，图片来源：《Java并发编程的艺术》<br>
-<img src="https://img.flipped.work/img/20210101161850.png"/></p>
-<ul>
-<li>New（新创建）</li>
-<li>Runnable（可运行）</li>
-<li>Blocked（被阻塞）</li>
-<li>Waiting（等待）</li>
-<li>Timed Waiting（计时等待）</li>
-<li>Terminated（被终止）</li>
-</ul>
-<p>如果想要确定线程当前的状态，可以通过 getState() 方法，并且线程在任何时刻只可能处于 1 种状态。</p>
-<h3 id="new-新创建">New 新创建</h3>
-<p>New 表示线程被创建但尚未启动的状态：当用 new Thread() 新建一个线程时，如果线程没有开始运行 start() 方法，所以也没有开始执行 run() 方法里面的代码，那么此时它的状态就是 New。而一旦线程调用了 start()，它的状态就会从 New 变成 Runnable。</p>
-<h3 id="runnable-可运行">Runnable 可运行</h3>
-<p>Java 中的 Runable 状态对应操作系统线程状态中的两种状态，分别是 Running 和 Ready，也就是说，Java 中处于 Runnable 状态的线程有可能正在执行，也有可能没有正在执行，正在等待被分配 CPU 资源。</p>
-<p>所以，如果一个正在运行的线程是 Runnable 状态，当它运行到任务的一半时，执行该线程的 CPU 被调度去做其他事情，导致该线程暂时不运行，它的状态依然不变，还是 Runnable，因为它有可能随时被调度回来继续执行任务。</p>
-<h3 id="阻塞状态">阻塞状态</h3>
-<p>在 Java 中阻塞状态通常不仅仅是 Blocked，实际上它包括三种状态，分别是 Blocked(被阻塞）、Waiting(等待）、Timed Waiting(计时等待），这三 种状态统称为阻塞状态，下面来看看这三种状态具体是什么含义。</p>
-<h4 id="blocked-被阻塞">Blocked 被阻塞</h4>
-<p>从箭头的流转方向可以看出，从 Runnable 状态进入 Blocked 状态只有一种可能，就是进入 synchronized 保护的代码（synchronized 代码块，还是 synchronized 方法）时没有抢到 monitor 锁。<br>
-当处于 Blocked 的线程抢到 monitor 锁，就会从 Blocked 状态回到Runnable 状态。</p>
-<h4 id="waiting-等待">Waiting 等待</h4>
-<p>线程进入 Waiting 状态有三种可能性。</p>
-<ul>
-<li>没有设置 Timeout 参数的 Object.wait() 方法。</li>
-<li>没有设置 Timeout 参数的 Thread.join() 方法。</li>
-<li>LockSupport.park() 方法。<br>
-Blocked 仅仅针对 synchronized monitor 锁，可是在 Java 中还有很多其他的锁，比如 ReentrantLock，如果线程在获取这种锁时没有抢到该锁就会进入 Waiting 状态，因为本质上它执行了 LockSupport.park() 方法，所以会进入 Waiting 状态。同样，Object.wait() 和 Thread.join() 也会让线程进入 Waiting 状态。</li>
-</ul>
-<p>Blocked 与 Waiting 的区别是 Blocked 在等待其他线程释放 monitor 锁，而 Waiting 则是在等待某个条件，比如 join 的线程执行完毕，或者是 notify()/notifyAll() 。</p>
-<h4 id="timed-waiting-限期等待">Timed Waiting 限期等待</h4>
-<p>Waiting 和 Timed Waiting 状态非常相似，区别仅在于有没有时间限制，Timed Waiting 会等待超时，由系统自动唤醒，或者在超时前被唤醒信号唤醒。<br>
-以下情况会让线程进入 Timed Waiting 状态。</p>
-<ul>
-<li>设置了时间参数的 Thread.sleep(long millis) 方法；</li>
-<li>设置了时间参数的 Object.wait(long timeout) 方法；</li>
-<li>设置了时间参数的 Thread.join(long millis) 方法；</li>
-<li>设置了时间参数的 LockSupport.parkNanos(long nanos) 方法和 LockSupport.parkUntil(long deadline) 方法。</li>
-</ul>
-<p>从 Blocked 状态进入 Runnable 状态，要求线程获取 monitor 锁。<br>
-从 Waiting 状态流转到其他状态则比较特殊，因为 Waiting 是不限时的，无论过了多长时间它都不会主动恢复，只有当执行了 LockSupport.unpark()，或者 join 的线程运行结束，或者被中断时才可以进入 Runnable 状态。如果其他线程调用 notify() 或 notifyAll()来唤醒它，它会直接进入 Blocked 状态，因为唤醒 Waiting 线程的线程如果调用 notify() 或 notifyAll()，要求必须首先持有该 monitor 锁，所以处于 Waiting 状态的线程被唤醒时拿不到该锁，就会进入 Blocked 状态，直到执行了 notify()/notifyAll() 的唤醒它的线程执行完毕并释放 monitor 锁，才可能轮到它去抢夺这把锁，如果它能抢到，就会从 Blocked 状态回到 Runnable 状态。</p>
-<p>在 Timed Waiting 中执行 notify() 和 notifyAll() 也是一样的道理，它们会先进入 Blocked 状态，然后抢夺锁成功后，再回到 Runnable 状态。如果它的超时时间到了且能直接获取到锁/join的线程运行结束/被中断/调用了LockSupport.unpark()，会直接恢复到 Runnable 状态，而无需经历 Blocked 状态。</p>
-<h3 id="terminated-终止">Terminated 终止</h3>
-<p>要想进入这个状态有两种可能。</p>
-<ul>
-<li>run() 方法执行完毕，线程正常退出。</li>
-<li>出现一个没有捕获的异常，终止了 run() 方法，最终导致意外终止。</li>
-</ul>
-<h2 id="注意点">注意点</h2>
-<ul>
-<li>线程的状态是需要按照箭头方向来走的，比如线程从 New 状态是不可以直接进入 Blocked 状态的，它需要先经历 Runnable 状态。</li>
-<li>线程生命周期不可逆：一旦进入 Runnable 状态就不能回到 New 状态；一旦被终止就不可能再有任何状态的变化。所以一个线程只能有一次 New 和 Terminated 状态，只有处于中间状态才可以相互转换。</li>
 </ul>
 ]]></content>
     </entry>
