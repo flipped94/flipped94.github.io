@@ -9,7 +9,7 @@
 <meta name="description" content="The higher I got, the more amazed I was by the view.">
 <meta name="theme-color" content="#000">
 <title>解决nvm下载node慢的问题 | Flipped&#39;s Blog</title>
-<link rel="shortcut icon" href="/favicon.ico?v=1611643454377">
+<link rel="shortcut icon" href="/favicon.ico?v=1611648903190">
 <link rel="stylesheet" href="/media/css/gemini.css">
 <link rel="stylesheet" href="/media/fonts/font-awesome.css">
 <link
@@ -953,7 +953,7 @@ npm_mirror: https://npm.taobao.org/mirrors/npm/
 &lt;/code&gt;&lt;/pre&gt;
 &lt;p&gt;Producer 由一个缓冲区和一个后台 I/O 线程组成，前者保存尚未传输到服务器的记录，后者负责将这些记录转换为请求并传输到集群。如果在使用之后没有关闭 Producer，这些资源就会泄漏。&lt;/p&gt;
 &lt;p&gt;&lt;code&gt;send()&lt;/code&gt; 方法是异步的。调用时，它将记录添加到等待记录发送的缓冲区中并立即返回。这允许 Producer 批量处理记录以提高效率。&lt;/p&gt;
-&lt;p&gt;&lt;code&gt;acks&lt;/code&gt; 配置控制请求完成的条件。指定“all”设置将导致提交记录时完全阻塞，这是最慢但最持久的设置。&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;acks&lt;/code&gt; 配置控制请求完成的条件。指定“all”设置将导致阻塞在提交记录，这是最慢但最持久的设置。&lt;/p&gt;
 &lt;p&gt;如果请求失败，Producer 可以自动重试，但由于将 &lt;code&gt;retries&lt;/code&gt; 指定为0，所以它不会重试。启用重试还增加了重复的可能性(有关消息传递语义的详细信息，请参阅文档)。&lt;/p&gt;
 &lt;p&gt;Producer 为每个分区维护未发送记录的缓冲区。这些缓冲区的大小由 &lt;code&gt;batch.size&lt;/code&gt; 配置指定。增大这个值可能会导致更多的批处理，但需要更多的内存(因为通常为每个活动分区设置一个这样的缓冲区)。&lt;/p&gt;
 &lt;p&gt;默认情况下，即使缓冲区中有额外的未使用空间，也可以立即发送缓冲区。如果想减少请求的数量，可以设置 &lt;code&gt;linger.ms&lt;/code&gt; 的值大于0，表示 Producer 在发送请求之前等待的毫秒数，希望有更多的记录填充缓冲区。例如，上面的代码片段中，因为将 &lt;code&gt;linger.ms&lt;/code&gt; 设置为1毫秒，所以可能所有100条记录都将在一个请求中发送，。但是，如果没有填满缓冲区，这个设置会给请求增加1毫秒的延迟。到达缓冲区时间接近的记录通常会在一个批处理，即使 &lt;code&gt;linger.ms&lt;/code&gt; 的值为0，因此，在大重载下，会忽视 &lt;code&gt;linger.ms&lt;/code&gt; 配置；将此配置设置为大于0的值可以在不处于最大负载下时导致更少、更有效的请求，代价是少量的延迟。&lt;/p&gt;
