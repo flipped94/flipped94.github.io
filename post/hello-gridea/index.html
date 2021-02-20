@@ -9,7 +9,7 @@
 <meta name="description" content="The higher I got, the more amazed I was by the view.">
 <meta name="theme-color" content="#000">
 <title>Hello Gridea | Flipped&#39;s Blog</title>
-<link rel="shortcut icon" href="/favicon.ico?v=1611648903190">
+<link rel="shortcut icon" href="/favicon.ico?v=1613831687269">
 <link rel="stylesheet" href="/media/css/gemini.css">
 <link rel="stylesheet" href="/media/fonts/font-awesome.css">
 <link
@@ -202,7 +202,7 @@
     <div class="sidebar-item-box">
       <a href="/archives/">
         
-        <span class="site-item-stat-count">13</span>
+        <span class="site-item-stat-count">15</span>
         <span class="site-item-stat-name language" data-lan="article">文章</span>
       </a>
     </div>
@@ -1113,6 +1113,120 @@
     <div class="result" id="result">
       
       <div class="item">
+        <a class="result-title" style="opacity: 0;" href="https://flipped94.github.io/post/maPBAxTLT/"" data-c="
+          &lt;p&gt;本文详细探讨如何搭建RocketMQ&lt;/p&gt;
+&lt;h2 id=&#34;一-下载&#34;&gt;一、下载&lt;/h2&gt;
+&lt;p&gt;前往https://www.apache.org/dyn/closer.cgi?path=rocketmq/4.8.0/rocketmq-all-4.8.0-bin-release.zip ，下载 Binary 文件即可。&lt;/p&gt;
+&lt;h2 id=&#34;二-预备环境&#34;&gt;二、预备环境&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Windows 10 64位操作系统&lt;/li&gt;
+&lt;li&gt;64 位 JDK 1.8&lt;/li&gt;
+&lt;li&gt;4G+的可用磁盘&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;三-配置&#34;&gt;三、配置&lt;/h3&gt;
+&lt;p&gt;配置两个系统环境变量配置&lt;br&gt;
+变量名： ROCKETMQ_HOME&lt;br&gt;
+变量值：&amp;quot;D:\rocketmq&amp;quot;&lt;br&gt;
+变量名： NAMESRV_ADDR&lt;br&gt;
+变量值：&amp;quot;localhost:9876&amp;quot;&lt;br&gt;
+&lt;img src=&#34;https://img.flipped.work/20210220220011.png&#34;/&gt;&lt;br&gt;
+&lt;img src=&#34;https://img.flipped.work/20210220220047.png&#34;/&gt;&lt;br&gt;
+如果使用 PowerShell，也可以如下面这样输入环境变量（如果关闭了PowerShell，需要重新输入）：&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;$Env:ROCKETMQ_HOME=&amp;quot;D:\rocketmq&amp;quot;
+$Env:NAMESRV_ADDR=&amp;quot;localhost:9876&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id=&#34;四-启动&#34;&gt;四、启动&lt;/h2&gt;
+&lt;p&gt;如果会出现内存不足的情况，需要修改找到 bin 目录下 runserver.sh和runbroker.sh，编辑&lt;br&gt;
+&lt;code&gt;set &amp;quot;JAVA_OPT=%JAVA_OPT% -server -Xms2g -Xmx2g -Xmn1g -XX:MetaspaceSize=128m -XX:MaxMetaspaceSize=320m&amp;quot;&lt;/code&gt;行，调整为合适的内存。&lt;/p&gt;
+&lt;h3 id=&#34;启动nameserver&#34;&gt;启动NAMESERVER&lt;/h3&gt;
+&lt;p&gt;打开一个 PowerShell 窗口，切换目录到RocketMQ根目录，然后执行 &lt;code&gt;.\bin\mqnamesrv.cmd&lt;/code&gt;，启动 NAME SERVER。此窗口不要关闭。&lt;/p&gt;
+&lt;h3 id=&#34;启动-broker&#34;&gt;启动 Broker&lt;/h3&gt;
+&lt;p&gt;打开第二个 PowerShell 窗口，切换目录到RocketMQ根目录，然后执行 &lt;code&gt;.\bin\mqbroker.cmd -n localhost:9876 autoCreateTopicEnable=true&lt;/code&gt;，启动 BROKER。此窗口不要关闭。&lt;/p&gt;
+&lt;h2 id=&#34;五-验证rocketmq功能正常&#34;&gt;五、验证RocketMQ功能正常&lt;/h2&gt;
+&lt;h3 id=&#34;验证生产消息正常&#34;&gt;验证生产消息正常&lt;/h3&gt;
+&lt;p&gt;打开第三个 PowerShell 窗口，切换目录到RocketMQ根目录，执行如下命令：&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;.\bin\tools.cmd  org.apache.rocketmq.example.quickstart.Producer
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;看到类似输出：&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;SendResult [sendStatus=SEND_OK, msgId=7F0000011C683764951D669C6BC10000, offsetMsgId=C0A8011E00002A9F0000000000000000, messageQueue=MessageQueue [topic=TopicTest, brokerName=DESKTOP-K5RATJ5, queueId=3], queueOffset=0]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h3 id=&#34;验证消费消息正常&#34;&gt;验证消费消息正常&lt;/h3&gt;
+&lt;p&gt;打开第四个 PowerShell 窗口，切换目录到RocketMQ根目录，执行如下命令：&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;.\bin\tools.cmd  org.apache.rocketmq.example.quickstart.Consumer
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;看到类似输出：&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;ConsumeMessageThread_1 Receive New Messages: [MessageExt [brokerName=DESKTOP-K5RATJ5, queueId=2, storeSize=203, queueOffset=236, sysFlag=0, bornTimestamp=1613830330877, bornHost=/192.168.1.30:4099, storeTimestamp=1613830330877, storeHost=/192.168.1.30:10911, msgId=C0A8011E00002A9F000000000002EE83, commitLogOffset=192131, bodyCRC=1948249169, reconsumeTimes=0, preparedTransactionOffset=0, toString()=Message{topic=&#39;TopicTest&#39;, flag=0, properties={MIN_OFFSET=0, MAX_OFFSET=250, CONSUME_START_TIME=1613830877782, UNIQ_KEY=7F0000011C683764951D669C79FD03B3, CLUSTER=DefaultCluster, WAIT=true, TAGS=TagA}, body=[72, 101, 108, 108, 111, 32, 82, 111, 99, 107, 101, 116, 77, 81, 32, 57, 52, 55], transactionId=&#39;null&#39;}]]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id=&#34;六-关闭&#34;&gt;六、关闭&lt;/h2&gt;
+&lt;p&gt;一般可以直接关闭所有的 PowerShell 窗口就行，生产环境别这样做就好。&lt;/p&gt;
+">Windows 10下 安装 RocketMQ</a>
+      </div>
+      
+      <div class="item">
+        <a class="result-title" style="opacity: 0;" href="https://flipped94.github.io/post/ZlEmf6-U8/"" data-c="
+          &lt;pre&gt;&lt;code class=&#34;language-yaml&#34;&gt;Table Configuration user matched more than one table (user_center..user,mysql..user)
+Column id, specified as a generated key column in table user, does not exist in the table.
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;在使用生成器生成代码的时候遇到了这个错误，现象就是某个类中出来了数据库表里面没有的字段，解决方法是在生成器的配置文件里的数据库连接地址(就是jdbcUrl)中添加这个参数：&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-yml&#34;&gt;nullCatalogMeansCurrent=true
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;完整的 generatorConfig.xml 配置文件如下：&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-xml&#34;&gt;&amp;lt;!DOCTYPE generatorConfiguration
+        PUBLIC &amp;quot;-//mybatis.org//DTD MyBatis Generator Configuration 1.0//EN&amp;quot;
+        &amp;quot;http://mybatis.org/dtd/mybatis-generator-config_1_0.dtd&amp;quot;&amp;gt;
+
+&amp;lt;generatorConfiguration&amp;gt;
+    &amp;lt;properties resource=&amp;quot;generator/config.properties&amp;quot;/&amp;gt;
+
+    &amp;lt;context id=&amp;quot;Mysql&amp;quot; targetRuntime=&amp;quot;MyBatis3Simple&amp;quot; defaultModelType=&amp;quot;flat&amp;quot;&amp;gt;
+        &amp;lt;property name=&amp;quot;beginningDelimiter&amp;quot; value=&amp;quot;`&amp;quot;/&amp;gt;
+        &amp;lt;property name=&amp;quot;endingDelimiter&amp;quot; value=&amp;quot;`&amp;quot;/&amp;gt;
+
+        &amp;lt;plugin type=&amp;quot;tk.mybatis.mapper.generator.MapperPlugin&amp;quot;&amp;gt;
+            &amp;lt;property name=&amp;quot;mappers&amp;quot; value=&amp;quot;tk.mybatis.mapper.common.Mapper&amp;quot;/&amp;gt;
+            &amp;lt;property name=&amp;quot;caseSensitive&amp;quot; value=&amp;quot;true&amp;quot;/&amp;gt;
+        &amp;lt;/plugin&amp;gt;
+
+        &amp;lt;jdbcConnection driverClass=&amp;quot;${jdbc.driverClass}&amp;quot;
+                        connectionURL=&amp;quot;${jdbc.url}&amp;quot;
+                        userId=&amp;quot;${jdbc.user}&amp;quot;
+                        password=&amp;quot;${jdbc.password}&amp;quot;&amp;gt;
+        &amp;lt;/jdbcConnection&amp;gt;
+
+        &amp;lt;!--实体--&amp;gt;
+        &amp;lt;javaModelGenerator targetPackage=&amp;quot;work.flipped.usercenter.domain.entity.${moduleName}&amp;quot;
+                            targetProject=&amp;quot;src/main/java&amp;quot;/&amp;gt;
+
+        &amp;lt;!--mapper.xml--&amp;gt;
+        &amp;lt;sqlMapGenerator targetPackage=&amp;quot;work.flipped.usercenter.dao.${moduleName}&amp;quot;
+                         targetProject=&amp;quot;src/main/resources&amp;quot;/&amp;gt;
+
+        &amp;lt;!--mapper接口--&amp;gt;
+        &amp;lt;javaClientGenerator targetPackage=&amp;quot;work.flipped.usercenter.dao.${moduleName}&amp;quot;
+                             targetProject=&amp;quot;src/main/java&amp;quot;
+                             type=&amp;quot;XMLMAPPER&amp;quot;/&amp;gt;
+
+        &amp;lt;!--为哪张表生成代码--&amp;gt;
+        &amp;lt;table tableName=&amp;quot;${tableName}&amp;quot;&amp;gt;
+            &amp;lt;generatedKey column=&amp;quot;id&amp;quot; sqlStatement=&amp;quot;JDBC&amp;quot;/&amp;gt;
+        &amp;lt;/table&amp;gt;
+    &amp;lt;/context&amp;gt;
+&amp;lt;/generatorConfiguration&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;config.properties 文件如下：&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-yml&#34;&gt;jdbc.url=jdbc:mysql://localhost:3306/user_center?serverTimezone=Asia/Shanghai&amp;amp;nullCatalogMeansCurrent=true
+jdbc.driverClass=com.mysql.cj.jdbc.Driver
+jdbc.user=root
+jdbc.password=flipped
+# 模块名称
+moduleName=user
+# 表名
+tableName=user
+&lt;/code&gt;&lt;/pre&gt;
+">通用 Mapper 专用代码生成器把其他数据库的同名表生成下来的问题</a>
+      </div>
+      
+      <div class="item">
         <a class="result-title" style="opacity: 0;" href="https://flipped94.github.io/post/UqOG-r8J9/"" data-c="
           &lt;p&gt;本文主要关于 Kafka Producer 设计和 Producer API。&lt;/p&gt;
 &lt;h2 id=&#34;producer-设计&#34;&gt;Producer 设计&lt;/h2&gt;
@@ -1154,10 +1268,10 @@
 &lt;/code&gt;&lt;/pre&gt;
 &lt;p&gt;Producer 由一个缓冲区和一个后台 I/O 线程组成，前者保存尚未传输到服务器的记录，后者负责将这些记录转换为请求并传输到集群。如果在使用之后没有关闭 Producer，这些资源就会泄漏。&lt;/p&gt;
 &lt;p&gt;&lt;code&gt;send()&lt;/code&gt; 方法是异步的。调用时，它将记录添加到等待记录发送的缓冲区中并立即返回。这允许 Producer 批量处理记录以提高效率。&lt;/p&gt;
-&lt;p&gt;&lt;code&gt;acks&lt;/code&gt; 配置控制请求完成的条件。指定“all”设置将导致阻塞在提交记录，这是最慢但最持久的设置。&lt;/p&gt;
-&lt;p&gt;如果请求失败，Producer 可以自动重试，但由于将 &lt;code&gt;retries&lt;/code&gt; 指定为0，所以它不会重试。启用重试还增加了重复的可能性(有关消息传递语义的详细信息，请参阅文档)。&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;acks&lt;/code&gt; 配置控制请求完成的条件。设置为 &lt;code&gt;all&lt;/code&gt; 时将导致阻塞在提交记录，这是最慢但最持久的设置。&lt;/p&gt;
+&lt;p&gt;如果请求失败，Producer 可以自动重试，但由于将 &lt;code&gt;retries&lt;/code&gt; 指定为0，所以它不会重试。启用重试还增加了重复的可能性。&lt;/p&gt;
 &lt;p&gt;Producer 为每个分区维护未发送记录的缓冲区。这些缓冲区的大小由 &lt;code&gt;batch.size&lt;/code&gt; 配置指定。增大这个值可能会导致更多的批处理，但需要更多的内存(因为通常为每个活动分区设置一个这样的缓冲区)。&lt;/p&gt;
-&lt;p&gt;默认情况下，即使缓冲区中有额外的未使用空间，也可以立即发送缓冲区。如果想减少请求的数量，可以设置 &lt;code&gt;linger.ms&lt;/code&gt; 的值大于0，表示 Producer 在发送请求之前等待的毫秒数，希望有更多的记录填充缓冲区。例如，上面的代码片段中，因为将 &lt;code&gt;linger.ms&lt;/code&gt; 设置为1毫秒，所以可能所有100条记录都将在一个请求中发送，。但是，如果没有填满缓冲区，这个设置会给请求增加1毫秒的延迟。到达缓冲区时间接近的记录通常会在一个批处理，即使 &lt;code&gt;linger.ms&lt;/code&gt; 的值为0，因此，在大重载下，会忽视 &lt;code&gt;linger.ms&lt;/code&gt; 配置；将此配置设置为大于0的值可以在不处于最大负载下时导致更少、更有效的请求，代价是少量的延迟。&lt;/p&gt;
+&lt;p&gt;默认情况下，即使缓冲区中有额外的未使用空间，也可以立即发送缓冲区。如果想减少请求的数量，可以设置 &lt;code&gt;linger.ms&lt;/code&gt; 的值大于0，表示 Producer 在发送请求之前等待的毫秒数，希望有更多的记录填充缓冲区。例如，上面的代码片段中，因为将 &lt;code&gt;linger.ms&lt;/code&gt; 设置为1毫秒，所以可能所有100条记录都将在一个请求中发送，。但是，如果没有填满缓冲区，这个设置会给请求增加1毫秒的延迟。到达缓冲区时间接近的记录通常会在一个批处理，即使 &lt;code&gt;linger.ms&lt;/code&gt; 的值为0，因此，在大负载下，会忽视 &lt;code&gt;linger.ms&lt;/code&gt; 配置；将此配置设置为大于0的值可以在不处于最大负载下时导致更少、更有效的请求，代价是少量的延迟。&lt;/p&gt;
 &lt;p&gt;&lt;code&gt;buffer.memory&lt;/code&gt; 控制 Producer 可用来缓冲的内存总量。如果记录的发送速度比它们传输到服务器的速度快，那么这个缓冲区空间将被耗尽。当缓冲区空间耗尽时，将阻塞其他的 &lt;code&gt;send&lt;/code&gt; 调用。阻塞时间的阈值由 &lt;code&gt;max.block.ms&lt;/code&gt; 决定，如果超市会抛出 &lt;code&gt;TimeoutException&lt;/code&gt; 异常。&lt;/p&gt;
 &lt;p&gt;&lt;code&gt;key.serializer&lt;/code&gt; 和 &lt;code&gt;value.serializer&lt;/code&gt; 表示如何将 &lt;code&gt;ProducerRecord&lt;/code&gt; 提供的键和值对象转换为字节。对于简单的字符串或字节类型，可以使用内置的 &lt;code&gt;ByteArraySerializer&lt;/code&gt; 或 &lt;code&gt;StringSerializer&lt;/code&gt;。&lt;/p&gt;
 &lt;p&gt;从Kafka 0.11开始，KafkaProducer 支持另外两种模式：幂等 Producer 和 事务 Producer。幂等 Producer 增强了 Kafka 的交付语义，从至少一次交付（at least once）到精确一次交付（exactly once）。特别是 Producer 重试将不再引入重复。事务 Producer 允许应用程序自动地将消息发送到多个分区(和主题!)。&lt;/p&gt;
@@ -1323,7 +1437,7 @@ public static void producerSendWithCallbackAndPartition() {
 &lt;/code&gt;&lt;/pre&gt;
 &lt;p&gt;三个 Partition 的记录几乎一样多，分别为33，33，34，运行结果如图所示。&lt;img src=&#34;https://img.flipped.work/img/20210124212456.png&#34;/&gt;&lt;/p&gt;
 &lt;h2 id=&#34;消息传递保障&#34;&gt;消息传递保障&lt;/h2&gt;
-&lt;p&gt;在下一章介绍 Kafka Consumer后，继续此内容。&lt;/p&gt;
+&lt;p&gt;在下一章介绍 Kafka Consumer后，介绍此内容。&lt;/p&gt;
 ">Kafka（三）Producer</a>
       </div>
       
