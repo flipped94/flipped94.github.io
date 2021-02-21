@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://flipped94.github.io</id>
     <title>Flipped&apos;s Blog</title>
-    <updated>2021-02-21T02:48:57.001Z</updated>
+    <updated>2021-02-21T09:54:32.254Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://flipped94.github.io"/>
     <link rel="self" href="https://flipped94.github.io/atom.xml"/>
@@ -725,307 +725,6 @@ wordCounts.toStream().to(&quot;output-topic&quot;), Produced.with(Serdes.String(
 ]]></content>
     </entry>
     <entry>
-        <title type="html"><![CDATA[Spring MVC中HandlerMapping和HandlerAdapter是怎么工作的？]]></title>
-        <id>https://flipped94.github.io/post/T0USSMNum/</id>
-        <link href="https://flipped94.github.io/post/T0USSMNum/">
-        </link>
-        <updated>2021-01-23T09:13:10.000Z</updated>
-        <content type="html"><![CDATA[<h2 id="spring-mvc-体系概述">Spring MVC 体系概述</h2>
-<p>Spring MVC 的整体架构如下图所示。<br>
-<img src="https://img.flipped.work/img/20210123201041.png"/></p>
-<p>从接受请求到返回响应，Spring MVC 框架的众多组件配合完成。整个框架总，DispatchServlet 处于核心位置，它接收所有的请求，并将具体的工作委托给其他组件处理。<br>
-DispatcherServvlet接收到请求后，根据请求信息（包括 URL、HTTP方法等）及 HandlerMapping 的配置，找到对应处理器（Handler，在Spring MVC中并没有定义一个Handler接口，任何一个 Object 都可以成为请求处理器，暂且可以认为是编写的 Controller 类）。<br>
-HandlerAdapter 是 Spring MVC 的框架级接口，顾名思义，HandlerAdapter 是一个适配器，他用统一的接口对各种 Handler 方法进行调用。</p>
-<h2 id="handler的三种实现方式">Handler的三种实现方式</h2>
-<p>在 Spring MVC 中，Handler常见的实现方式有三种，虽然一般只用 <code>@RequestMapping</code> 注解</p>
-<h3 id="实现-controller接口">实现 Controller接口</h3>
-<pre><code class="language-java">@Component(&quot;/index&quot;)
-public class IndexController implements Controller {
-
-    @Override
-    public ModelAndView handleRequest(HttpServletRequest request, HttpServletResponse response) throws Exception {
-        response.getWriter().write(&quot;IndexController&quot;);
-        return null;
-    }
-}
-</code></pre>
-<p>访问 http://localhost:8080/index，页面输出 IndexController，这里需要说明的有2点</p>
-<ul>
-<li>当 Handler 返回的 ModelAndView 为 null 时，后续 ViewResolver 查找 View，View 进行渲染的过程会被省略</li>
-<li><code>@Component</code> 注解的 <code>value</code> 值必须以 <code>/</code> 开头。</li>
-</ul>
-<h3 id="实现httprequesthandler接口">实现HttpRequestHandler接口</h3>
-<pre><code class="language-java">@Component(&quot;/address&quot;)
-public class AddressController implements HttpRequestHandler {
-    @Override
-    public void handleRequest(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        response.getWriter().write(&quot;AddressController&quot;);
-    }
-}
-</code></pre>
-<p>访问 http://localhost:8080/address，页面输出 AddressController</p>
-<h3 id="requestmapping注解">@RequestMapping注解</h3>
-<p>这种方式应该很熟悉了，就不再介绍了。</p>
-<h2 id="handlermapping">HandlerMapping</h2>
-<p>HandlerMapping接口定义如下</p>
-<pre><code class="language-java">public interface HandlerMapping {
-    // 根据请求获取HandlerExecutionChain
-    @Nullable
-    HandlerExecutionChain getHandler(HttpServletRequest request) throws Exception;
-}
-</code></pre>
-<p><code>HandlerExecutionChain</code> 的定义也很简单，是对 Handler 和这个 Handler 执行前后要执行的拦截器的封装</p>
-<pre><code class="language-java">public class HandlerExecutionChain {
-    private final Object handler;
-    @Nullable
-    private List&lt;HandlerInterceptor&gt; interceptorList;
-}
-</code></pre>
-<p><code>DispatcherServlet</code> 有一个成员变量 <code>private List&lt;HandlerMapping&gt; handlerMappings</code><br>
-当通过请求找 Handler 时，会依次调用 handlerMappings 的 handler 方法，找到第一个不为 null 的 handler 则返回，继续后面的流程，如果遍历完 handlerMappings，handler 还为 null，则报404错误。<br>
-Spring MVC有三种映射策略</p>
-<ul>
-<li>BeanName 映射 -&gt; BeanNameUrlHandlerMapping</li>
-<li>简单 url 映射 -&gt; SimpleUrlHandlerMapping</li>
-<li><code>@RequestMapping</code> 映射 -&gt; RequestMappingHandlerMapping</li>
-</ul>
-<h3 id="beannameurlhandlermapping">BeanNameUrlHandlerMapping</h3>
-<p>上面演示 Handler 的三种写法的时候已经演示了 <code>BeanNameUrlHandlerMapping</code> 的作用了,<code>@Componet</code>注解的值和请求的 url 相同。</p>
-<h4 id="注册">注册</h4>
-<p>在 Spring 启动过程中，会拿到所有以 <strong>/</strong> 开头的 BeanName，并注册到<code>AbstractUrlHandlerMapping</code> 类的成员变量 handlerMap 中，注册的时候key重复会报异常</p>
-<pre><code class="language-java">// AbstractUrlHandlerMapping
-Map&lt;String, Object&gt; handlerMap = new LinkedHashMap&lt;&gt;();
-</code></pre>
-<p>其中 key 为 <code>@Component</code> 的 <code>value</code> 值，<code>value</code> 为 <code>@Component</code> 修饰的类</p>
-<h4 id="查找">查找</h4>
-<p>查找的时候分为如下几步，因为要考虑统配符的存在，所以能是简单的get</p>
-<ol>
-<li>先直接从 handlerMap 中，如果不为空则直接返回</li>
-<li>遍历 handlerMap，调用 AntPathMatcher 的匹配方法，看请求的路径和注册的路径是否有匹配的。如果有多个匹配，则对匹配的路径进行排序。选出最优的，返回对应的 Handler</li>
-<li>如果还是没有找到，则返回 null<br>
-示例如下</li>
-</ol>
-<pre><code class="language-java">@Test
-public void test1() {
-    AntPathMatcher pathMatcher = new AntPathMatcher();
-    Assert.assertTrue(pathMatcher.match(&quot;index/user&quot;, &quot;index/user&quot;));
-    Assert.assertTrue(pathMatcher.match(&quot;index/**&quot;, &quot;index/product/a&quot;));
-    Assert.assertTrue(pathMatcher.match(&quot;index/**/a&quot;, &quot;index/product/a&quot;));
-}
-</code></pre>
-<p>如果有如下3个 handler</p>
-<pre><code class="language-java">@Component(&quot;/index/user&quot;)
-public class AController implements Controller
-@Component(&quot;/index/**&quot;)
-public class BController implements Controller
-@Component(&quot;/index/**/a&quot;)
-public class CController implements Controller
-</code></pre>
-<p>则初始化完后 handlerMap 为</p>
-<pre><code class="language-json">&quot;/index/user&quot; -&gt; AController
-&quot;/index/**&quot; -&gt; BController 
-&quot;/index/**/a&quot; -&gt; CController 
-</code></pre>
-<p>当访问 <code>/index/user</code>，能直接从 map 中取出 AController 然后返回。<br>
-当访问 <code>index/product/a</code>，直接从 map 中拿不到，就开始遍历 key 做路径匹配，结果发现有2个路径 <code>index/**</code>和 <code>/index/**/a</code> 匹配，因为有2个路径符合，所以排序，排序后得到的最优路径为 <code>index/**/a</code>，取出 CController，然后执行。</p>
-<h3 id="simpleurlhandlermapping">SimpleUrlHandlerMapping</h3>
-<p>这个其实和 BeanNameUrlHandlerMapping 差不多，只是需要 Handler 对应的路径，而不是把BeanName 作为路径。<br>
-还是以上面的 IndexController 和 AddressController 为例，不用 <code>@Component</code> 指定 BeanName，则默认为类名，首字母小写</p>
-<pre><code class="language-java">@Component
-public class IndexController implements Controller
-@Component
-public class AddressController implements HttpRequestHandler
-</code></pre>
-<p>增加如下配置类</p>
-<pre><code class="language-java">@Configuration
-public class HandlerMappingConfig {
-    @Autowired
-    private AddressController addressController;
-    @Bean
-    public SimpleUrlHandlerMapping simpleUrlHandlerMapping() {
-        SimpleUrlHandlerMapping mapping = new SimpleUrlHandlerMapping();
-        Map&lt;String, Object&gt; urlMap = new HashMap&lt;&gt;();
-        urlMap.put(&quot;/indexV2&quot;, &quot;indexController&quot;);
-        urlMap.put(&quot;/addressV2&quot;, addressController);
-        mapping.setUrlMap(urlMap);
-        return mapping;
-    }
-}
-</code></pre>
-<p>访问 http://localhost:8080/indexV2，输出 IndexController。<br>
-访问 http://localhost:8080/addressV2，输出 AddressController。</p>
-<h4 id="注册-2">注册</h4>
-<p>注册的逻辑和 <code>BeanNameUrlHandlerMapping</code> 相似，也是将映射关系存在<code>AbstractUrlHandlerMapping</code> 类的成员变量 <code>handlerMap</code> 中。</p>
-<pre><code class="language-java">// AbstractUrlHandlerMapping
-Map&lt;String, Object&gt; handlerMap = new LinkedHashMap&lt;&gt;();
-</code></pre>
-<p>key 为 SimpleUrlHandlerMapping 的 urlMap 中指定的路径，value 为 urlMap 中指定的Handler，当然如果 urlMap 中指定的 Handler 为一个 String，则会从容器中找到相应的实现类注册进去。</p>
-<h4 id="查找-2">查找</h4>
-<p>查找的逻辑和 <code>BeanNameUrlHandlerMapping</code> 的逻辑一样，因为2个类的映射关系都存在<br>
-<code>AbstractUrlHandlerMapping</code> 中，并且各自没有重新查找的逻辑<br>
-<img src="https://img.flipped.work/img/20210123205844.png"/></p>
-<h3 id="requestmappinghandlermapping">RequestMappingHandlerMapping</h3>
-<p><code>@RequestMapping</code> 的对应的 <code>RequestMappingHandlerMapping</code> 和 <code>RequestMappingHandlerAdapter</code> 应该是 Spring MVC 中最复杂的部分了。因为 <code>RequestMappingHandlerMapping</code> 和 <code>RequestMappingHandlerAdapter</code> 各成体系，包含了大量组件来协同工作。</p>
-<h4 id="注册-3">注册</h4>
-<p>之前的映射关系，是直接存在 Map 中，而 <code>RequestMappingHandlerMapping</code> 的映射关系存在 <code>AbstractHandlerMethodMapping</code> 的内部类 <code>MappingRegistry</code> 的成员变量中。</p>
-<pre><code class="language-java">class MappingRegistry {
-    // 从RequestMappingInfoHandlerMapping类上可以看到T为RequestMappingInfo
-    // RequestMappingInfo -&gt; HandlerMethod
-    private final Map&lt;T, HandlerMethod&gt; mappingLookup = new LinkedHashMap&lt;&gt;();
-
-    // 不包含通配符的url -&gt; List&lt;RequestMappingInfo&gt;
-    // 这里为什么是一个List呢？因为一个url有可能对应多个方法，即这些方法的@RequestMapping注解path属性一样，但是其他属性不一样
-    private final MultiValueMap&lt;String, T&gt; urlLookup = new LinkedMultiValueMap&lt;&gt;();
-}
-</code></pre>
-<ol>
-<li>spring 容器在启动的时候，会拿到所有的 bean，判断这个 bean 上是否有 Controller 或者 <code>RequestMapping</code> 注解，如果有则执行后面的步骤。</li>
-<li>解析类上的 <code>@RequestMapping</code> 注解，将其信息封装为 <code>RequestMappingInfo</code> 。</li>
-<li>将 <code>RequestMappingInfo</code> 及其对应的 <code>HandlerMethod</code> 注册到 <code>mappingLookup</code> 中。</li>
-<li>如果 <code>@RequestMapping</code> 指定的 url 没有通配符，则将 url -&gt; RequestMappingInfo 注册到 urlLookup 中<br>
-举个例子，假如有如下一个Controller</li>
-</ol>
-<pre><code class="language-java">@RestController
-@RequestMapping(&quot;manage&quot;)
-public class ManageController {
-    @RequestMapping(&quot;product/*&quot;)
-    public String index() {
-        return &quot;product&quot;;
-    }
-
-    @RequestMapping(value = &quot;user&quot;, method = {RequestMethod.GET})
-    public String userByGet() {
-        return &quot;userByGet&quot;;
-    }
-
-    @RequestMapping(value = &quot;user&quot;, method = {RequestMethod.POST})
-    public String userByPost() {
-        return &quot;userByPost&quot;;
-    }
-}
-</code></pre>
-<p>初始化完成后2个Map的值为<br>
-<img src="https://img.flipped.work/img/20210123210451.png"/><br>
-<img src="https://img.flipped.work/img/20210123210507.png"/></p>
-<h4 id="查找-3">查找</h4>
-<p>查找的过程还是和上面提到的2个Map有关<br>
-<strong>urlLookup</strong><br>
-key=不包含通配符的url<br>
-value=List<RequestMappingInfo><br>
-<strong>mappingLookup</strong><br>
-key=RequestMappingInfo<br>
-value=HandlerMethod</p>
-<ol>
-<li>先根据 url从urlLookup 中查找对应的 RequestMappingInfo，如果找到的 List 不为空，则判断其他匹配条件是否符合。</li>
-<li>如果其他条件也有符合的（params，headers等），则不再遍历所有的 RequestMappingInfo，否则遍历所有的 RequestMappingInfo，因为考虑到有通配符形式的 url 所以必须遍历所有的RequestMappingInfo才能找出来符合条件的。</li>
-<li>如果最终找到的 RequestMappingInfo 有多个，则按照特定的规则找出一个最匹配的，再从 mappingLookup 返回其对应的 HandlerMethod。</li>
-</ol>
-<p>可能会疑惑，为什么一个不含通配符的 url 会有多个 handler。因为用 <code>@RequestMapping</code> 标记后，请求时不只要路径匹配就可以，还有很多其他条件。<br>
-如果找到多个符合条件的 Handler，返回最优 Handler 的过程也比较麻烦，不再像之前的 <code>SimpleUrlHandlerMapping</code> 只考虑路径就可以了，还要考虑其他的条件，比较复杂，就不再分析了</p>
-<h2 id="handleradapter">HandlerAdapter</h2>
-<p><code>HandlerAdapter</code> 接口定义如下:</p>
-<pre><code class="language-java">public interface HandlerAdapter {
-    // 该适配器是否能支持指定处理器
-    boolean supports(Object handler);
-
-    // 执行处理逻辑，返回 ModelAndView
-    @Nullable
-    ModelAndView handle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception;
-
-    // 请求的目标资源最近一次的修改时间
-    long getLastModified(HttpServletRequest request, Object handler);
-}
-</code></pre>
-<p>DispatcherServlet有一个成员变量，<code>private List&lt;HandlerAdapter&gt; handlerAdapters</code>,当通过 HandlerMapping 找到 Handler 后，会依次调用 handlerAdapters 的 supports 方法，找到第一个返回 true 的 HandlerAdapter，然后调用 HandlerAdapter 的 handle 方法，完成执行。</p>
-<p>常用的HandlerAdapter如下：</p>
-<ul>
-<li>HttpRequestHandlerAdapter -&gt; 执行实现了 HttpRequestHandler 接口的 Handler</li>
-<li>SimpleControllerHandlerAdapter -&gt; 执行实现了 Controller 接口的 Handler</li>
-<li>RequestMappingHandlerAdapter -&gt; 执行 Handler 类型是 HandlerMethod 及其子类的Handler，RequestMappingHandlerMapping 返回的 Handler 是 HandlerMethod 类型</li>
-</ul>
-<h3 id="httprequesthandleradapter">HttpRequestHandlerAdapter</h3>
-<pre><code class="language-java">public class HttpRequestHandlerAdapter implements HandlerAdapter {
-    @Override
-    public boolean supports(Object handler) {
-        return (handler instanceof HttpRequestHandler);
-    }
-
-    @Override
-    @Nullable
-    public ModelAndView handle(HttpServletRequest request, HttpServletResponse response, Object handler)
-            throws Exception {
-
-        ((HttpRequestHandler) handler).handleRequest(request, response);
-        return null;
-    }
-
-}
-</code></pre>
-<p>强转为 HttpRequestHandler 然后调用 handleRequest 方法，最后返回 null，当 ModelAndView 为 null 的时候，ViewResolver 查找 View，并且 View 进行渲染的过程会被省略。</p>
-<h3 id="simplecontrollerhandleradapter">SimpleControllerHandlerAdapter</h3>
-<pre><code class="language-java">public class SimpleControllerHandlerAdapter implements HandlerAdapter {
-
-    @Override
-    public boolean supports(Object handler) {
-        return (handler instanceof Controller);
-    }
-
-    @Override
-    @Nullable
-    public ModelAndView handle(HttpServletRequest request, HttpServletResponse response, Object handler)
-            throws Exception {
-
-        return ((Controller) handler).handleRequest(request, response);
-    }
-
-}
-</code></pre>
-<p>直接强转然后调用 handleRequest 方法</p>
-<h3 id="requestmappinghandleradapter">RequestMappingHandlerAdapter</h3>
-<pre><code class="language-java">public class RequestMappingHandlerAdapter extends AbstractHandlerMethodAdapter
-        implements BeanFactoryAware, InitializingBean {
-
-    // 参数解析器，对各种参数注解如@PathVariable，@RequestParam的的支持
-    @Nullable
-    private List&lt;HandlerMethodArgumentResolver&gt; customArgumentResolvers;
-
-    // 返回值处理器，如当方法或类上有@ResponseBody注解时，用消息转换器转为json
-    @Nullable
-    private List&lt;HandlerMethodReturnValueHandler&gt; customReturnValueHandlers;
-
-    // 消息转换器，对@RequestBody @ResponseBody注解的支持
-    private List&lt;HttpMessageConverter&lt;?&gt;&gt; messageConverters;
-
-}
-</code></pre>
-<p><code>RequestMappingHandlerAdapter</code> 自成体系，包含了大量组件对请求进行处理，如参数解析器，返回值处理器等。<code>RequestMappingHandlerAdapter</code> 的 handler 函数在父类 <code>AbstractHandlerMethodAdapter</code>中，定义如下</p>
-<pre><code class="language-java">public final boolean supports(Object handler) {
-    return (handler instanceof HandlerMethod &amp;&amp; supportsInternal((HandlerMethod) handler));
-}
-</code></pre>
-<p>其中 <code>RequestMappingHandlerAdapter</code> 重写了 <code>supportsInternal</code> 方法，永远返回 true，即 <code>RequestMappingHandlerAdapter</code> 支持 <code>Handler</code> 类型是 <code>HandlerMethod</code> 的Handler，而 <code>RequestMappingHandlerMapping</code> 返回的 Handler 类型就是 <code>HandlerMethod</code>，因此可以知道 <code>@RequestMapping</code> 对应的 <code>HandlerMapping</code> 是 <code>RequestMappingHandlerMapping</code>，对应的 <code>HandlerAdapter</code> 是 <code>RequestMappingHandlerAdapter</code></p>
-<p><code>HandlerMethod</code> 的定义也很简单，封装了要执行方法所对应的类，方法，参数。这样直接就能通过反射来执行。</p>
-<pre><code class="language-java">public class HandlerMethod {
-    // 封装的handler的类
-    private final Object bean;
-
-    // 封装的handler的方法
-    private final Method bridgedMethod;
-
-    // 封装方法的参数
-    private final MethodParameter[] parameters;
-
-}
-</code></pre>
-<pre><code class="language-java">method.invoke(obj, args);
-</code></pre>
-<h2 id="总结">总结</h2>
-<p>Spring MVC为什么要搞这么多 <code>HandlerMapping</code> 和 <code>HandlerAdapter</code> 呢？主要还是为了适应不同的场景，静态资源的请求用 <code>SimpleUrlHandlerMapping</code> 特别方便，逻辑清晰还容易调试。而 <code>RequestMappingHandlerMapping</code> 则比较适合写业务，因为能适应复杂多变的场景。<br>
-最开始提到的映射规则如何实现？其实很简单，写一个 <code>HandlerMapping</code> 的实现类，返回<code>HandlerMethod</code>，这样只改变了查找过程，后续执行的过程没有改变，因此各种参数注解<code>@RequestParam</code>，<code>@RequestBody</code>，<code>@PathVariable</code> 等都可以使用.</p>
-<p>本文分享自微信公众号 - Java识堂（erlieStar），作者：李立敏</p>
-]]></content>
-    </entry>
-    <entry>
         <title type="html"><![CDATA[配置 Elasticsearch]]></title>
         <id>https://flipped94.github.io/post/ng_w0EohH/</id>
         <link href="https://flipped94.github.io/post/ng_w0EohH/">
@@ -1540,6 +1239,36 @@ network.host: ${ES_NETWORK_HOST}
 <pre><code class="language-sh">wsl -l -v
 </code></pre>
 <img src="https://img.flipped.work/img/20210120214258.png"/>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Java内存模型]]></title>
+        <id>https://flipped94.github.io/post/L9fEuMZUz/</id>
+        <link href="https://flipped94.github.io/post/L9fEuMZUz/">
+        </link>
+        <updated>2021-01-19T12:56:48.000Z</updated>
+        <content type="html"><![CDATA[<h2 id="jvm-内存结构-vs-java-内存模型">JVM 内存结构 VS Java 内存模型</h2>
+<p>JVM 内存结构与 Java 内存模型容易混淆，其实它们是不同的。从整体上概括一下这两者的主要作用：</p>
+<ul>
+<li>JVM 内存结构和 Java 虚拟机的运行时区域有关；</li>
+<li>Java 内存模型和 Java 的并发编程有关。</li>
+</ul>
+<h2 id="jvm-内存结构">JVM 内存结构</h2>
+<p>Java 虚拟机在执行 Java 程序的过程中会把所管理的内存划分为若干个不同的数据区域，JVM 运行时内存区域结构可分为以下 6 个区。</p>
+<ul>
+<li>堆区：存储类实例和数组。</li>
+<li>虚拟机栈：保存局部变量和部分结果，并在方法调用和返回中起作用。</li>
+<li>方法区：存储每个类的结构，例如运行时的常量池、字段和方法数据，以及方法和构造函数的代码，包括用于类初始化以及接口初始化的特殊方法。</li>
+<li>本地方法栈：与虚拟机栈基本类似，区别在于虚拟机栈为虚拟机执行的 Java 方法服务，而本地方法栈则是为 Native 方法服务。</li>
+<li>程序计数器：通常保存当前正在执行的 JVM 指令地址。</li>
+<li>运行时常量池：方法区的一部分，包含多种常量，范围从编译时已知的数字到必须在运行时解析的方法和字段引用。</li>
+</ul>
+<h2 id="java-内存模型java-memory-modeljmm">Java 内存模型（Java Memory Model，JMM）</h2>
+<h3 id="jmm-是什么">JMM 是什么</h3>
+<p>JMM 是和多线程相关的一组规范，开发者可以利用这些规范开发多线程程序，使同一个程序在不同的虚拟机上运行的结果一致。如果没有 JMM 内存模型来规范，可能在经过了不同 JVM 的“翻译”之后，导致在不同的虚拟机上运行的结果不一样。<br>
+因此，JMM 与处理器、缓存、并发、编译器有关。它解决了 CPU 多级缓存、处理器优化、指令重排等导致的结果不可预期的问题。</p>
+<h3 id="jmm-是工具类和关键字的原理">JMM  是工具类和关键字的原理</h3>
+<p>各种同步工具和关键字，包括 volatile、synchronized、Lock 等，它们的原理都涉及 JMM。例如，关键字 synchronized，JVM 会在 JMM 的规则下，“翻译”出合适的指令，包括限制指令之间的顺序，以便在即使发生了重排序的情况下，也能保证必要的“可见性”，这样一来，不同的 JVM 对于相同的代码的执行结果就变得可预期了。</p>
 ]]></content>
     </entry>
 </feed>
