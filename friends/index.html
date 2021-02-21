@@ -9,7 +9,7 @@
 <meta name="description" content="The higher I got, the more amazed I was by the view.">
 <meta name="theme-color" content="#000">
 <title>Flipped&#39;s Blog</title>
-<link rel="shortcut icon" href="/favicon.ico?v=1613831687269">
+<link rel="shortcut icon" href="/favicon.ico?v=1613875722780">
 <link rel="stylesheet" href="/media/css/gemini.css">
 <link rel="stylesheet" href="/media/fonts/font-awesome.css">
 <link
@@ -184,19 +184,19 @@
     <div class="sidebar-item-box">
       <a href="/archives/">
         
-        <span class="site-item-stat-count">15</span>
+        <span class="site-item-stat-count">16</span>
         <span class="site-item-stat-name language" data-lan="article">文章</span>
       </a>
     </div>
     <div class="sidebar-item-box">
       <a href="">
-        <span class="site-item-stat-count">5</span>
+        <span class="site-item-stat-count">7</span>
         <span class="site-item-stat-name language" data-lan="category">分类</span>
       </a>
     </div>
     <div class="sidebar-item-box">
       <a href="/tags/">
-        <span class="site-item-stat-count">5</span>
+        <span class="site-item-stat-count">7</span>
         <span class="site-item-stat-name language" data-lan="tag">标签</span>
       </a>
     </div>
@@ -521,6 +521,49 @@
       <hr>
     </div>
     <div class="result" id="result">
+      
+      <div class="item">
+        <a class="result-title" style="opacity: 0;" href="https://flipped94.github.io/post/2hNfLJsXh/"" data-c="
+          &lt;p&gt;本文详细探讨如何搭建RocketMQ控制台，RocketMQ的可视化管理界面。&lt;/p&gt;
+&lt;h2 id=&#34;一-下载代码&#34;&gt;一、下载代码&lt;/h2&gt;
+&lt;p&gt;方式一、git下载，执行如下命令&lt;br&gt;
+git clone https://github.com/apache/rocketmq-externals.git&lt;/p&gt;
+&lt;p&gt;方式二、直接下载，访问如下地址即可&lt;br&gt;
+https://github.com/apache/rocketmq-externals/archive/master.zip&lt;/p&gt;
+&lt;h2 id=&#34;二-修改控制台代码&#34;&gt;二、修改控制台代码&lt;/h2&gt;
+&lt;h3 id=&#34;21-修改配置&#34;&gt;2.1 修改配置&lt;/h3&gt;
+&lt;p&gt;找到 &lt;code&gt;rocketmq-console/src/main/resources/application.properties&lt;/code&gt; 根据需求，修改配置。笔者只修改了如下两项。&lt;/p&gt;
+&lt;h5 id=&#34;控制台的端口&#34;&gt;控制台的端口&lt;/h5&gt;
+&lt;p&gt;&lt;code&gt;server.port=9020&lt;/code&gt;&lt;/p&gt;
+&lt;h4 id=&#34;namesrv_addr-地址&#34;&gt;NAMESRV_ADDR 地址&lt;/h4&gt;
+&lt;p&gt;也可以不修改，在启动完console后，在控制台导航栏 - 运维 - NameSvrAddrList一栏设置&lt;br&gt;
+&lt;code&gt;rocketmq.config.namesrvAddr=localhost:9876&lt;/code&gt;&lt;/p&gt;
+&lt;h3 id=&#34;22-修改依赖&#34;&gt;2.2 修改依赖&lt;/h3&gt;
+&lt;p&gt;修改 &lt;code&gt;pom.xml&lt;/code&gt; ，修改 RocketMQ 相关依赖的版本&lt;/p&gt;
+&lt;p&gt;找到 &lt;code&gt;&amp;lt;rocketmq.version&amp;gt;4.8.0&amp;lt;/rocketmq.version&amp;gt;&lt;/code&gt;修改为&lt;code&gt;&amp;lt;rocketmq.version&amp;gt;你的RocketMQ版本&amp;lt;/rocketmq.version&amp;gt;&lt;/code&gt;。因为笔者使用的 Rocket MQ 的版本是4.8.0，所以不需要修改。&lt;/p&gt;
+&lt;h4 id=&#34;23-修改代码&#34;&gt;2.3 修改代码&lt;/h4&gt;
+&lt;p&gt;修改pom.xml后，&lt;code&gt;org.apache.rocketmq.console.service.impl.MessageServiceImpl#queryMessageByTopic&lt;/code&gt; 编译会报错，需要将&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;DefaultMQPullConsumer consumer = new DefaultMQPullConsumer(MixAll.TOOLS_CONSUMER_GROUP, null)；
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;改为：&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;RPCHook rpcHook = null;
+DefaultMQPullConsumer consumer = new DefaultMQPullConsumer(MixAll.TOOLS_CONSUMER_GROUP, rpcHook);
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;即可。&lt;/p&gt;
+&lt;h2 id=&#34;三-打包构建&#34;&gt;三、打包构建&lt;/h2&gt;
+&lt;p&gt;切换到目录&lt;code&gt;rocketmq-console&lt;/code&gt;，执行下面的命令&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;mvn clean package -DskipTests
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id=&#34;四-启动&#34;&gt;四、启动&lt;/h2&gt;
+&lt;pre&gt;&lt;code class=&#34;language-bash&#34;&gt;java -jar .\target\rocketmq-console-ng-2.0.0.jar
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id=&#34;五-访问&#34;&gt;五、访问&lt;/h2&gt;
+&lt;p&gt;访问 http://localhost:9020 (端口用上面 application.properties 中的 server.port=9020指定，默认是8080) ，即可看到类似如下的界面：&lt;br&gt;
+&lt;img src=&#34;https://img.flipped.work/20210221104517.png&#34;/&gt;&lt;/p&gt;
+&lt;h1 id=&#34;六-控制台使用说明&#34;&gt;六、控制台使用说明&lt;/h1&gt;
+&lt;p&gt;&lt;a href=&#34;https://github.com/eacdy/rocketmq-externals/blob/master/rocketmq-console/doc/1_0_0/UserGuide_CN.md&#34;&gt;RocketMQ控制台使用文档&lt;/a&gt;&lt;/p&gt;
+">RocketMQ控制台安装教程</a>
+      </div>
       
       <div class="item">
         <a class="result-title" style="opacity: 0;" href="https://flipped94.github.io/post/maPBAxTLT/"" data-c="
