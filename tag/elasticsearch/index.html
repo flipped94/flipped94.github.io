@@ -9,7 +9,7 @@
 <meta name="description" content="The higher I got, the more amazed I was by the view.">
 <meta name="theme-color" content="#000">
 <title>Flipped&#39;s Blog</title>
-<link rel="shortcut icon" href="/favicon.ico?v=1613901261443">
+<link rel="shortcut icon" href="/favicon.ico?v=1614922422577">
 <link rel="stylesheet" href="/media/css/gemini.css">
 <link rel="stylesheet" href="/media/fonts/font-awesome.css">
 <link
@@ -184,7 +184,7 @@
     <div class="sidebar-item-box">
       <a href="/archives/">
         
-        <span class="site-item-stat-count">15</span>
+        <span class="site-item-stat-count">16</span>
         <span class="site-item-stat-name language" data-lan="article">文章</span>
       </a>
     </div>
@@ -248,6 +248,10 @@
           <small class="language" data-lan="tag">标签</small>
         </h2>
       </div>
+      
+      
+      
+      
       
       
       
@@ -540,6 +544,55 @@
       <hr>
     </div>
     <div class="result" id="result">
+      
+      <div class="item">
+        <a class="result-title" style="opacity: 0;" href="https://flipped94.github.io/post/fzhTdOqQh/"" data-c="
+          &lt;p&gt;使用Mybatis最大的特性就是sql需要自己写，而写sql就需要传递多个参数。下面总结了以下几种多参数传递的方法。MyBatis版本为3.5.6。&lt;/p&gt;
+&lt;h2 id=&#34;方法1顺序传参&#34;&gt;方法1：顺序传参&lt;/h2&gt;
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;public  User selectUserByIdRange(int start, int offset);
+&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code class=&#34;language-xml&#34;&gt;&amp;lt;select id=&amp;quot;selectUserByIdRange&amp;quot; resultTyoe=&amp;quot;work.flipped.domain.User&amp;quot;&amp;gt;
+    select * from imc_user where user_name = #{param1} and dept_id = #{param2}
+    &amp;lt;!--或者--&amp;gt;
+     select * from imc_user where user_id between #{arg0} and #{arg1}
+     &amp;lt;!--还有一些版本使用--&amp;gt;
+     select * from imc_user where user_id between #{0} and #{1}
+&amp;lt;/select&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;code&gt;#{}&lt;/code&gt;代表传入参数的顺序。这种方法不建议使用，sql层表达不直观，且一旦顺序调整容易出错。&lt;/p&gt;
+&lt;h2 id=&#34;方法2param注解传参&#34;&gt;方法2：@Param注解传参&lt;/h2&gt;
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;List&amp;lt;User&amp;gt; selectUserByIdRange(@Param(&amp;quot;start&amp;quot;) int start, @Param(&amp;quot;offset&amp;quot;) int offset);
+&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code class=&#34;language-xml&#34;&gt;&amp;lt;select id=&amp;quot;selectUserByIdRange&amp;quot; resultTyoe=&amp;quot;work.flipped.domain.User&amp;quot;&amp;gt;
+     select * from imc_user where user_id between #{start} and #{offset}
+&amp;lt;/select&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;code&gt;#{}&lt;/code&gt; 里面的名称对应的是注解&lt;code&gt;@Param&lt;/code&gt; 括号里面修饰的名称。这种方法在参数不多的情况比较直观的，推荐使用。&lt;/p&gt;
+&lt;h2 id=&#34;方法3map传参&#34;&gt;方法3：Map传参&lt;/h2&gt;
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;List&amp;lt;User&amp;gt; selectUserByIdRange(Map&amp;lt;String, Object&amp;gt; map);
+&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code class=&#34;language-xml&#34;&gt;&amp;lt;select id=&amp;quot;selectUserByIdRange&amp;quot; parameterType=&amp;quot;java.util.Map&amp;quot; resultType=&amp;quot;work.flipped.domain.User&amp;quot;&amp;gt;
+        select * from imc_user where user_id between #{start} and #{offset}
+    &amp;lt;/select&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;code&gt;#{}&lt;/code&gt;里面的名称对应的是 Map里面的key名称。这种方法适合传递多个参数，且参数易变能灵活传递的情况。&lt;/p&gt;
+&lt;h2 id=&#34;方法4java-bean传参&#34;&gt;方法4：Java Bean传参&lt;/h2&gt;
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;@Data
+@Builder
+public class Range {
+    private int start;
+    private int offset;
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code class=&#34;language-java&#34;&gt;List&amp;lt;User&amp;gt; selectUserByIdRange(Range range);
+&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code class=&#34;language-xml&#34;&gt;&amp;lt;select id=&amp;quot;selectUserByIdRange&amp;quot; parameterType=&amp;quot;work.flipped.domain.dto.Range&amp;quot; resultType=&amp;quot;work.flipped.domain.User&amp;quot;&amp;gt;
+    select * from imc_user where user_id between #{start} and #{offset}
+&amp;lt;/select&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;code&gt;#{}&lt;/code&gt; 里面的名称对应的是 Range 类里面的成员属性。这种方法很直观，但需要建一个实体类，扩展不容易，需要加属性（结合Lombok很好用），看情况使用。&lt;/p&gt;
+">Mybatis传递多个参数</a>
+      </div>
       
       <div class="item">
         <a class="result-title" style="opacity: 0;" href="https://flipped94.github.io/post/2hNfLJsXh/"" data-c="

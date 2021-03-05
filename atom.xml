@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://flipped94.github.io</id>
     <title>Flipped&apos;s Blog</title>
-    <updated>2021-02-21T09:54:32.254Z</updated>
+    <updated>2021-03-05T05:34:19.012Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://flipped94.github.io"/>
     <link rel="self" href="https://flipped94.github.io/atom.xml"/>
@@ -10,6 +10,58 @@
     <logo>https://flipped94.github.io/images/avatar.png</logo>
     <icon>https://flipped94.github.io/favicon.ico</icon>
     <rights>All rights reserved 2021, Flipped&apos;s Blog</rights>
+    <entry>
+        <title type="html"><![CDATA[Mybatis传递多个参数]]></title>
+        <id>https://flipped94.github.io/post/fzhTdOqQh/</id>
+        <link href="https://flipped94.github.io/post/fzhTdOqQh/">
+        </link>
+        <updated>2021-03-05T04:45:47.000Z</updated>
+        <content type="html"><![CDATA[<p>使用Mybatis最大的特性就是sql需要自己写，而写sql就需要传递多个参数。下面总结了以下几种多参数传递的方法。MyBatis版本为3.5.6。</p>
+<h2 id="方法1顺序传参">方法1：顺序传参</h2>
+<pre><code class="language-java">public  User selectUserByIdRange(int start, int offset);
+</code></pre>
+<pre><code class="language-xml">&lt;select id=&quot;selectUserByIdRange&quot; resultTyoe=&quot;work.flipped.domain.User&quot;&gt;
+    select * from imc_user where user_name = #{param1} and dept_id = #{param2}
+    &lt;!--或者--&gt;
+     select * from imc_user where user_id between #{arg0} and #{arg1}
+     &lt;!--还有一些版本使用--&gt;
+     select * from imc_user where user_id between #{0} and #{1}
+&lt;/select&gt;
+</code></pre>
+<p><code>#{}</code>代表传入参数的顺序。这种方法不建议使用，sql层表达不直观，且一旦顺序调整容易出错。</p>
+<h2 id="方法2param注解传参">方法2：@Param注解传参</h2>
+<pre><code class="language-java">List&lt;User&gt; selectUserByIdRange(@Param(&quot;start&quot;) int start, @Param(&quot;offset&quot;) int offset);
+</code></pre>
+<pre><code class="language-xml">&lt;select id=&quot;selectUserByIdRange&quot; resultTyoe=&quot;work.flipped.domain.User&quot;&gt;
+     select * from imc_user where user_id between #{start} and #{offset}
+&lt;/select&gt;
+</code></pre>
+<p><code>#{}</code> 里面的名称对应的是注解<code>@Param</code> 括号里面修饰的名称。这种方法在参数不多的情况比较直观的，推荐使用。</p>
+<h2 id="方法3map传参">方法3：Map传参</h2>
+<pre><code class="language-java">List&lt;User&gt; selectUserByIdRange(Map&lt;String, Object&gt; map);
+</code></pre>
+<pre><code class="language-xml">&lt;select id=&quot;selectUserByIdRange&quot; parameterType=&quot;java.util.Map&quot; resultType=&quot;work.flipped.domain.User&quot;&gt;
+        select * from imc_user where user_id between #{start} and #{offset}
+    &lt;/select&gt;
+</code></pre>
+<p><code>#{}</code>里面的名称对应的是 Map里面的key名称。这种方法适合传递多个参数，且参数易变能灵活传递的情况。</p>
+<h2 id="方法4java-bean传参">方法4：Java Bean传参</h2>
+<pre><code class="language-java">@Data
+@Builder
+public class Range {
+    private int start;
+    private int offset;
+}
+</code></pre>
+<pre><code class="language-java">List&lt;User&gt; selectUserByIdRange(Range range);
+</code></pre>
+<pre><code class="language-xml">&lt;select id=&quot;selectUserByIdRange&quot; parameterType=&quot;work.flipped.domain.dto.Range&quot; resultType=&quot;work.flipped.domain.User&quot;&gt;
+    select * from imc_user where user_id between #{start} and #{offset}
+&lt;/select&gt;
+</code></pre>
+<p><code>#{}</code> 里面的名称对应的是 Range 类里面的成员属性。这种方法很直观，但需要建一个实体类，扩展不容易，需要加属性（结合Lombok很好用），看情况使用。</p>
+]]></content>
+    </entry>
     <entry>
         <title type="html"><![CDATA[RocketMQ控制台安装教程]]></title>
         <id>https://flipped94.github.io/post/2hNfLJsXh/</id>
@@ -1239,36 +1291,6 @@ network.host: ${ES_NETWORK_HOST}
 <pre><code class="language-sh">wsl -l -v
 </code></pre>
 <img src="https://img.flipped.work/img/20210120214258.png"/>
-]]></content>
-    </entry>
-    <entry>
-        <title type="html"><![CDATA[Java内存模型]]></title>
-        <id>https://flipped94.github.io/post/L9fEuMZUz/</id>
-        <link href="https://flipped94.github.io/post/L9fEuMZUz/">
-        </link>
-        <updated>2021-01-19T12:56:48.000Z</updated>
-        <content type="html"><![CDATA[<h2 id="jvm-内存结构-vs-java-内存模型">JVM 内存结构 VS Java 内存模型</h2>
-<p>JVM 内存结构与 Java 内存模型容易混淆，其实它们是不同的。从整体上概括一下这两者的主要作用：</p>
-<ul>
-<li>JVM 内存结构和 Java 虚拟机的运行时区域有关；</li>
-<li>Java 内存模型和 Java 的并发编程有关。</li>
-</ul>
-<h2 id="jvm-内存结构">JVM 内存结构</h2>
-<p>Java 虚拟机在执行 Java 程序的过程中会把所管理的内存划分为若干个不同的数据区域，JVM 运行时内存区域结构可分为以下 6 个区。</p>
-<ul>
-<li>堆区：存储类实例和数组。</li>
-<li>虚拟机栈：保存局部变量和部分结果，并在方法调用和返回中起作用。</li>
-<li>方法区：存储每个类的结构，例如运行时的常量池、字段和方法数据，以及方法和构造函数的代码，包括用于类初始化以及接口初始化的特殊方法。</li>
-<li>本地方法栈：与虚拟机栈基本类似，区别在于虚拟机栈为虚拟机执行的 Java 方法服务，而本地方法栈则是为 Native 方法服务。</li>
-<li>程序计数器：通常保存当前正在执行的 JVM 指令地址。</li>
-<li>运行时常量池：方法区的一部分，包含多种常量，范围从编译时已知的数字到必须在运行时解析的方法和字段引用。</li>
-</ul>
-<h2 id="java-内存模型java-memory-modeljmm">Java 内存模型（Java Memory Model，JMM）</h2>
-<h3 id="jmm-是什么">JMM 是什么</h3>
-<p>JMM 是和多线程相关的一组规范，开发者可以利用这些规范开发多线程程序，使同一个程序在不同的虚拟机上运行的结果一致。如果没有 JMM 内存模型来规范，可能在经过了不同 JVM 的“翻译”之后，导致在不同的虚拟机上运行的结果不一样。<br>
-因此，JMM 与处理器、缓存、并发、编译器有关。它解决了 CPU 多级缓存、处理器优化、指令重排等导致的结果不可预期的问题。</p>
-<h3 id="jmm-是工具类和关键字的原理">JMM  是工具类和关键字的原理</h3>
-<p>各种同步工具和关键字，包括 volatile、synchronized、Lock 等，它们的原理都涉及 JMM。例如，关键字 synchronized，JVM 会在 JMM 的规则下，“翻译”出合适的指令，包括限制指令之间的顺序，以便在即使发生了重排序的情况下，也能保证必要的“可见性”，这样一来，不同的 JVM 对于相同的代码的执行结果就变得可预期了。</p>
 ]]></content>
     </entry>
 </feed>
