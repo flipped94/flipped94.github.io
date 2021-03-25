@@ -9,7 +9,7 @@
 <meta name="description" content="The higher I got, the more amazed I was by the view.">
 <meta name="theme-color" content="#000">
 <title>Windows 10下 安装 RocketMQ | Flipped&#39;s Blog</title>
-<link rel="shortcut icon" href="/favicon.ico?v=1614923431362">
+<link rel="shortcut icon" href="/favicon.ico?v=1616692782008">
 <link rel="stylesheet" href="/media/css/gemini.css">
 <link rel="stylesheet" href="/media/fonts/font-awesome.css">
 <link
@@ -202,7 +202,7 @@
     <div class="sidebar-item-box">
       <a href="/archives/">
         
-        <span class="site-item-stat-count">16</span>
+        <span class="site-item-stat-count">17</span>
         <span class="site-item-stat-name language" data-lan="article">文章</span>
       </a>
     </div>
@@ -1161,6 +1161,57 @@ $Env:NAMESRV_ADDR=&quot;localhost:9876&quot;
       <hr>
     </div>
     <div class="result" id="result">
+      
+      <div class="item">
+        <a class="result-title" style="opacity: 0;" href="https://flipped94.github.io/post/RbMQQqRZW/"" data-c="
+          &lt;p&gt;正确的如下:&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&#34;language-json&#34;&gt;input {
+  file {
+    path =&amp;gt; &amp;quot;D:/software/logstash-7.10.1/movies.csv&amp;quot;
+    start_position =&amp;gt; &amp;quot;beginning&amp;quot;
+    sincedb_path =&amp;gt; &amp;quot;NUL&amp;quot;
+  }
+}
+filter {
+  csv {
+    separator =&amp;gt; &amp;quot;,&amp;quot;
+    columns =&amp;gt; [&amp;quot;id&amp;quot;,&amp;quot;content&amp;quot;,&amp;quot;genre&amp;quot;]
+  }
+
+  mutate {
+    split =&amp;gt; { &amp;quot;genre&amp;quot; =&amp;gt; &amp;quot;|&amp;quot; }
+    remove_field =&amp;gt; [&amp;quot;path&amp;quot;, &amp;quot;host&amp;quot;,&amp;quot;@timestamp&amp;quot;,&amp;quot;message&amp;quot;]
+  }
+
+  mutate {
+
+    split =&amp;gt; [&amp;quot;content&amp;quot;, &amp;quot;(&amp;quot;]
+    add_field =&amp;gt; { &amp;quot;title&amp;quot; =&amp;gt; &amp;quot;%{[content][0]}&amp;quot;}
+    add_field =&amp;gt; { &amp;quot;year&amp;quot; =&amp;gt; &amp;quot;%{[content][1]}&amp;quot;}
+  }
+
+  mutate {
+    convert =&amp;gt; {
+      &amp;quot;year&amp;quot; =&amp;gt; &amp;quot;integer&amp;quot;
+    }
+    strip =&amp;gt; [&amp;quot;title&amp;quot;]
+    remove_field =&amp;gt; [&amp;quot;path&amp;quot;, &amp;quot;host&amp;quot;,&amp;quot;@timestamp&amp;quot;,&amp;quot;message&amp;quot;,&amp;quot;content&amp;quot;]
+  }
+
+}
+output {
+   elasticsearch {
+     hosts =&amp;gt; &amp;quot;http://localhost:9200&amp;quot;
+     index =&amp;gt; &amp;quot;movies&amp;quot;
+     document_id =&amp;gt; &amp;quot;%{id}&amp;quot;
+   }
+  stdout {}
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;sincedb_path:可以是一个不存在的文件。&lt;br&gt;
+path：windows下文件分隔如果&amp;quot;&amp;quot;，不会导入数据，也没有error信息，需要改成：&amp;quot;/&amp;quot;，奇怪的是sincedb_path文件分隔用&amp;quot;&amp;quot;。&lt;/p&gt;
+">win10+logstash导入数据坑</a>
+      </div>
       
       <div class="item">
         <a class="result-title" style="opacity: 0;" href="https://flipped94.github.io/post/fzhTdOqQh/"" data-c="

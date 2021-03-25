@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://flipped94.github.io</id>
     <title>Flipped&apos;s Blog</title>
-    <updated>2021-03-05T06:11:13.817Z</updated>
+    <updated>2021-03-25T17:19:56.938Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://flipped94.github.io"/>
     <link rel="self" href="https://flipped94.github.io/atom.xml"/>
@@ -10,6 +10,60 @@
     <logo>https://flipped94.github.io/images/avatar.png</logo>
     <icon>https://flipped94.github.io/favicon.ico</icon>
     <rights>All rights reserved 2021, Flipped&apos;s Blog</rights>
+    <entry>
+        <title type="html"><![CDATA[win10+logstash导入数据坑]]></title>
+        <id>https://flipped94.github.io/post/RbMQQqRZW/</id>
+        <link href="https://flipped94.github.io/post/RbMQQqRZW/">
+        </link>
+        <updated>2021-03-25T17:14:54.000Z</updated>
+        <content type="html"><![CDATA[<p>正确的如下:</p>
+<pre><code class="language-json">input {
+  file {
+    path =&gt; &quot;D:/software/logstash-7.10.1/movies.csv&quot;
+    start_position =&gt; &quot;beginning&quot;
+    sincedb_path =&gt; &quot;NUL&quot;
+  }
+}
+filter {
+  csv {
+    separator =&gt; &quot;,&quot;
+    columns =&gt; [&quot;id&quot;,&quot;content&quot;,&quot;genre&quot;]
+  }
+
+  mutate {
+    split =&gt; { &quot;genre&quot; =&gt; &quot;|&quot; }
+    remove_field =&gt; [&quot;path&quot;, &quot;host&quot;,&quot;@timestamp&quot;,&quot;message&quot;]
+  }
+
+  mutate {
+
+    split =&gt; [&quot;content&quot;, &quot;(&quot;]
+    add_field =&gt; { &quot;title&quot; =&gt; &quot;%{[content][0]}&quot;}
+    add_field =&gt; { &quot;year&quot; =&gt; &quot;%{[content][1]}&quot;}
+  }
+
+  mutate {
+    convert =&gt; {
+      &quot;year&quot; =&gt; &quot;integer&quot;
+    }
+    strip =&gt; [&quot;title&quot;]
+    remove_field =&gt; [&quot;path&quot;, &quot;host&quot;,&quot;@timestamp&quot;,&quot;message&quot;,&quot;content&quot;]
+  }
+
+}
+output {
+   elasticsearch {
+     hosts =&gt; &quot;http://localhost:9200&quot;
+     index =&gt; &quot;movies&quot;
+     document_id =&gt; &quot;%{id}&quot;
+   }
+  stdout {}
+}
+</code></pre>
+<p>sincedb_path:可以是一个不存在的文件。<br>
+path：windows下文件分隔如果&quot;&quot;，不会导入数据，也没有error信息，需要改成：&quot;/&quot;，奇怪的是sincedb_path文件分隔用&quot;&quot;。</p>
+]]></content>
+    </entry>
     <entry>
         <title type="html"><![CDATA[Mybatis传递多个参数]]></title>
         <id>https://flipped94.github.io/post/fzhTdOqQh/</id>
@@ -1257,40 +1311,6 @@ network.host: ${ES_NETWORK_HOST}
 }
 </code></pre>
 <p>除了像这样的基本聚合，Elasticsearch 还提供了专门的聚合，用于在多个字段上操作并分析特定类型的数据，例如日期，IP地址和地理数据。</p>
-]]></content>
-    </entry>
-    <entry>
-        <title type="html"><![CDATA[安装 WSL2 (win10专业版，19042)]]></title>
-        <id>https://flipped94.github.io/post/MW6ZY5hk/</id>
-        <link href="https://flipped94.github.io/post/MW6ZY5hk/">
-        </link>
-        <updated>2021-01-20T13:18:56.000Z</updated>
-        <content type="html"><![CDATA[<p>与 WSL 不同，WSL2 是一个完整的Linux内核。本文主要介绍在win10（版本号<strong>19042.746，专业版</strong>）中启用 WSL2。</p>
-<h2 id="安装wsl2">安装WSL2</h2>
-<p><a href="https://docs.microsoft.com/en-us/windows/wsl/install-win10">点击</a>查看微软的官方说明。</p>
-<h3 id="步骤1-启用linux子系统">步骤1 启用Linux子系统</h3>
-<p>在Windows上安装任何Linux发行版之前，必须启用 Linux 子系统功能。</p>
-<p>以管理员身份打开PowerShell并运行：</p>
-<pre><code class="language-sh">dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
-</code></pre>
-<h3 id="步骤2-启用虚拟机功能">步骤2 启用虚拟机功能</h3>
-<p>安装WSL 2之前，必须启用虚拟机平台可选功能。以管理员身份打开PowerShell并运行：</p>
-<pre><code class="language-sh">dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
-</code></pre>
-<p>重启电脑，完成WSL安装并更新到WSL 2。</p>
-<h3 id="步骤3-下载linux内核更新程序包">步骤3 下载Linux内核更新程序包</h3>
-<p><a href="https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi">点击下载</a>，双击安装。</p>
-<h3 id="步骤4-将wsl-2设置为默认版本">步骤4 将WSL 2设置为默认版本</h3>
-<p>在 PowerShell 中运行以下命令，WSL 2设置为默认版本：</p>
-<pre><code class="language-shell">wsl --set-default-version 2
-</code></pre>
-<h3 id="步骤5-安装发行版">步骤5 安装发行版</h3>
-<p>打开<a href="https://aka.ms/wslstore">Microsoft商店</a>，然后选择喜欢的Linux发行版。</p>
-<h3 id="步骤6-验证">步骤6 验证</h3>
-<p>在 PowerShell 中运行以下命令：</p>
-<pre><code class="language-sh">wsl -l -v
-</code></pre>
-<img src="https://img.flipped.work/img/20210120214258.png"/>
 ]]></content>
     </entry>
 </feed>
