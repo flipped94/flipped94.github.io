@@ -1,0 +1,1329 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <id>https://flipped94.github.io</id>
+    <title>Flipped&apos;s Blog</title>
+    <updated>2023-10-12T13:11:34.416Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://flipped94.github.io"/>
+    <link rel="self" href="https://flipped94.github.io/atom.xml"/>
+    <subtitle>The higher I got, the more amazed I was by the view.</subtitle>
+    <logo>https://flipped94.github.io/images/avatar.png</logo>
+    <icon>https://flipped94.github.io/favicon.ico</icon>
+    <rights>All rights reserved 2023, Flipped&apos;s Blog</rights>
+    <entry>
+        <title type="html"><![CDATA[Redis 集群（2）搭建集群]]></title>
+        <id>https://flipped94.github.io/post/jr1KpXQgr/</id>
+        <link href="https://flipped94.github.io/post/jr1KpXQgr/">
+        </link>
+        <updated>2023-10-12T01:17:25.000Z</updated>
+        <content type="html"><![CDATA[<p>本文主要介绍如何搭建 Redis 集群、与集群交互、重新分片、故障转移等。</p>
+<h3 id="准备工作">准备工作</h3>
+<p>要创建 Redis 集群，首先需要有一些以集群模式运行的空 Redis 实例。下面是以集群模式运行 Redis 实例的最小化配置。</p>
+<pre><code class="language-properties">port 7000
+cluster-enabled yes
+cluster-config-file nodes.conf
+cluster-node-timeout 5000
+appendonly yes
+</code></pre>
+<p>要启用集群模式，需将 <code>cluster-enabled</code> 指令设置为 &quot;yes&quot;。 每个实例还包含存储该节点配置的文件的路径，默认为 nodes.conf。这个配置文件由 Redis 集群的节点自行创建和更新，不能手动地去修改。</p>
+<p>一个最小的集群需要最少３个主节点，建议配置６个节点：３个主节点和３个从节点。在本地可以通过目录和端口区分节点，进行部署测试。例如：</p>
+<pre><code class="language-bash">mkdir cluster-test
+cd cluster-test
+mkdir 7000 7001 7002 7003 7004 7005
+</code></pre>
+<p>在 7000-7005 的每个目录中创建配置文件 redis.conf，内容就用上面的最简配置做模板，注意修改端口号为文件夹名称。然后打开 6 个终端，在每个终端中启动一个实例：</p>
+<pre><code class="language-bash">cd 7000
+../redis-server ./redis.conf
+</code></pre>
+<p>从日志中看到每个节点都为自己分配了一个新 ID：</p>
+<pre><code class="language-txt">12678:M 12 Oct 2023 10:12:05.847 * No cluster configuration found, I'm 5d35bda6ad172d2bef65791657065794c2b06225
+</code></pre>
+<p>这个ID将一直被此节点使用，作为此节点在整个集群中的唯一标识。节点区分其他节点也是通过此ID来标识，而非IP或端口。IP可以改，端口可以改，但此ID不能改，直到这个节点离开集群。这个ID称之为节点ID(Node ID)。</p>
+<h3 id="搭建集群">搭建集群</h3>
+<p>经过上一步骤，现在已经运行了 6 个 Redis 实例，还需要通过向节点写入一些配置来创建集群。这里只介绍 <code>redis-cli</code> 创建集群（redis源码 utils/create-cluster目录中的create-cluster脚本也可以创建集群）</p>
+<pre><code class="language-bash">redis-cli --cluster create 127.0.0.1:7000 127.0.0.1:7001 \
+127.0.0.1:7002 127.0.0.1:7003 127.0.0.1:7004 127.0.0.1:7005 \
+--cluster-replicas 1
+</code></pre>
+<p>使用 <code>create</code> 命令是创建新的集群。 选项 <code>--cluster-replicas 1</code> 表示为每一个主服务器配一个重服务器。其余的参数是要创建的集群中各实例的地址列表</p>
+<p>redis-cli 命令会给出一个配置。 输入 &quot;yes&quot; 接受配置。 集群会被配置并彼此连接好，意思是各节点实例被引导彼此通话并最终形成集群。最后，如果一切顺利，会看到类似下面的信息：</p>
+<pre><code class="language-txt">[OK] All 16384 slots covered.
+</code></pre>
+<h3 id="与集群交互">与集群交互</h3>
+<p>要连接到 Redis 集群，需要一个支持集群的 Redis 客户端，例如可以使用 <code>redis-cli</code> 测试 Redis 集群：</p>
+<pre><code class="language-bash">$ redis-cli -c -p 7000
+127.0.0.1:7000&gt; set foo bar
+-&gt; Redirected to slot [12182] located at 127.0.0.1:7002
+OK
+127.0.0.1:7002&gt; set hello world
+-&gt; Redirected to slot [866] located at 127.0.0.1:7000
+OK
+127.0.0.1:7000&gt; get foo
+-&gt; Redirected to slot [12182] located at 127.0.0.1:7002
+&quot;bar&quot;
+127.0.0.1:7002&gt; get hello
+-&gt; Redirected to slot [866] located at 127.0.0.1:7000
+&quot;world&quot;
+</code></pre>
+<p><code>redis-cli</code> 集群功能支持非常基础，它利用 Redis 集群节点能够将客户端重定向到正确节点（例如set foo 和 get foo 重定向到了 7002 节点）。 更好的客户端能够缓存哈希槽和节点地址之间的映射，直接使用正确连接，仅当集群配置发生更改时（例如故障转移后或系统管理员通过添加或删除节点更改集群布局后），才会刷新映射。</p>
+<h3 id="第一个示例应用">第一个示例应用</h3>
+<p>在演示如何操作 Redis 集群、执行故障转移或重新分片等操作之前，需要一些示例应用程序，或者至少能够理解简单的 Redis 集群客户端交互的语义。</p>
+<p>本节用两个示例应用介绍 <a href="https://github.com/antirez/redis-rb-cluster">redis-rb-cluster</a>的基本用法。第一个是 redis-rb-cluster 库中的 example.rb 文件：</p>
+<pre><code class="language-ruby">require './cluster'
+
+if ARGV.length != 2
+    startup_nodes = [
+        {:host =&gt; &quot;127.0.0.1&quot;, :port =&gt; 6379},
+        {:host =&gt; &quot;127.0.0.1&quot;, :port =&gt; 6380}
+    ]
+else
+    startup_nodes = [
+        {:host =&gt; ARGV[0], :port =&gt; ARGV[1].to_i}
+    ]
+end
+
+rc = RedisCluster.new(startup_nodes,32,:timeout =&gt; 0.1)
+
+last = false
+
+while not last
+    begin
+        last = rc.get(&quot;__last__&quot;)
+        last = 0 if !last
+    rescue =&gt; e
+        puts &quot;error #{e.to_s}&quot;
+        sleep 1
+    end
+end
+
+((last.to_i+1)..1000000000).each{|x|
+    begin
+        rc.set(&quot;foo#{x}&quot;,x)
+        puts rc.get(&quot;foo#{x}&quot;)
+        rc.set(&quot;__last__&quot;,x)
+    rescue =&gt; e
+        puts &quot;error #{e.to_s}&quot;
+    end
+    sleep 0.1
+}
+</code></pre>
+<p>该应用做了一件非常简单的事情，执行了以下一些命令：</p>
+<pre><code class="language-bash">SET foo0 0
+SET foo1 1
+SET foo2 2
+...
+</code></pre>
+<p>运行该应用会产生以下输出：</p>
+<pre><code class="language-bash">ruby ./example.rb
+1
+2
+3
+4
+5
+6
+7
+8
+9
+...
+</code></pre>
+<p>这个应用做的事情虽然简单，但是通过它可以看到重新分片期间会发生什么。</p>
+<h3 id="重新分片">重新分片</h3>
+<p>现在准备尝试集群重新分片，须保持 example.rb 程序运行，以便查看是否对程序运行产生一些影响。 另外，可以注释 sleep 调用，以便在重新分片期间产生更大的写入负载。</p>
+<p>重新分片基本上意味着将哈希槽从一组节点移动到另一组节点。 与集群创建一样，也是使用 <code>redis-cli</code>完成。<br>
+只需执行以下命令即可开始重新分片：</p>
+<pre><code class="language-bash">redis-cli --cluster reshard 127.0.0.1:7000
+</code></pre>
+<p>只需要指定一个节点，<code>redis-cli</code> 会自动找到其他节点。<br>
+目前，<code>redis-cli</code> 只能在管理员支持下进行重新分片，不能只是说将 5% 的槽从该节点移动到另一个节点（但这实现起来非常简单）。 redis-cli 会问几个问题。 第一个是想要多少槽重新分片：</p>
+<pre><code class="language-txt">How many slots do you want to move (from 1 to 16384)?
+</code></pre>
+<p>可以尝试重新分片 1000 个哈希槽，如果 example.rb 在没有 sleep 调用的情况下仍在运行，那么这些槽应该已经包含了大量的键。</p>
+<p>redis-cli 需要知道重新分片的目标是什么，即接收哈希槽的节点。通过节点 ID 指定实例节点（这里使用第一个主节点），可以使用以下命令找到节点的 ID：</p>
+<pre><code class="language-bash">redis-cli -p 7000 cluster nodes | grep myself 
+5d35bda6ad172d2bef65791657065794c2b06225 127.0.0.1:7000@17000 myself,master - 0 1697080901000 1 connected 0-5460
+</code></pre>
+<p>可以看到，目标节点是 &quot;5d35bda6ad172d2bef65791657065794c2b062&quot;。</p>
+<p>现在，系统会询问想要从哪些节点获取这些 key。 只需输入 &quot;all&quot; 即可从所有其他主节点获取哈希槽。</p>
+<p>最终确认后，将看到每个插槽的消息，表明将从一个节点移动到另一个节点。</p>
+<p>当重新分片正在进行时，应该能够看到示例程序的运行不受影响。 如果需要，可以在重新分片期间多次停止并重新启动它。重新分片结束后，可以使用以下命令测试集群的健康状况：</p>
+<pre><code class="language-bash">redis-cli --cluster check 127.0.0.1:7000
+</code></pre>
+<p>可以看到所有哈希槽的分布，但这次主节点 127.0.0.1:7000 将拥有更多哈希插槽，约为 6461 个。</p>
+<p>使用如下命令可以字段进行重新分片，而无需以交互方式手动输入参数：</p>
+<pre><code class="language-bash">redis-cli --cluster reshard &lt;host&gt;:&lt;port&gt; --cluster-from &lt;node-id&gt; --cluster-to &lt;node-id&gt; --cluster-slots &lt;number of slots&gt; --cluster-yes
+</code></pre>
+<p>如果可能经常重新分片，这个给命令是一个比较好的选择，但是目前 redis-cli 无法自动重新平衡集群，检查集群节点上键的分布并根据需要智能地移动哈希槽。</p>
+<p><code>--cluster-yes</code> 选项表示集群管理器自动对询问回答“是”，从而以非交互模式运行。也可以通过设置 <code>REDISCLI_CLUSTER_YES</code> 环境变量来激活此选项。</p>
+<h3 id="第二个示例应用">第二个示例应用</h3>
+<p>第一个示例应用程序不是很完美。它只是简单写数据，没有检查写入的内容是否正确。从我们的角度来看，总是可以将 key &quot;foo&quot; 的每个写操作都写入 42。在 redis-rb-cluster 库中，有一个更有趣的应用 consistency-test.rb 。 它使用了一些计数器（默认为 1000），并发送 <code>INCR</code> 命令对计数器进行自增。该应用还做了两件事：</p>
+<ul>
+<li>更新计数器时，会保存该写入。</li>
+<li>每次写入之前读取计数器，并将其与内存中的值进行比较，检查该值是否是我们期望的值，。</li>
+</ul>
+<p>这意味着该应用是一个简单的一致性检查器，并且能够知道集群是否丢失了某些写入，或者它是否接受了未收到确认的写入。 在第一种情况下，会看到计数器的值小于保存的写入，而在第二种情况下，该值会更大。</p>
+<p>运行该应用每秒会产生一行输出：</p>
+<pre><code class="language-bash">$ ruby consistency-test.rb 127.0.0.1 7000
+925 R (0 err) | 925 W (0 err) |
+5030 R (0 err) | 5030 W (0 err) |
+9261 R (0 err) | 9261 W (0 err) |
+13517 R (0 err) | 13517 W (0 err) |
+17780 R (0 err) | 17780 W (0 err) |
+22025 R (0 err) | 22025 W (0 err) |
+25818 R (0 err) | 25818 W (0 err) |
+</code></pre>
+<p>该行显示执行的读取 （R）和写入（W）次数以及错误（由于系统不可用，因此由于错误而未接受查询）数（err）。</p>
+<p>如果发现某些不一致，则会将新行添加到输出中。 例如，如果在程序运行时手动重置计数器，就会发生这种情况：</p>
+<pre><code class="language-bash">$ redis-cli -h 127.0.0.1 -p 7000 set key_217 0
+OK
+
+(in the other tab I see...)
+
+94774 R (0 err) | 94774 W (0 err) |
+98821 R (0 err) | 98821 W (0 err) |
+102886 R (0 err) | 102886 W (0 err) | 114 lost |
+107046 R (0 err) | 107046 W (0 err) | 114 lost |
+</code></pre>
+<p>当将计数器设置为 0 时，实际值为 114，因此应用报告 114 个丢失的写入（集群未记住的 INCR 命令）。</p>
+<p>这个程序也会它来测试 Redis 集群故障转移。</p>
+<h3 id="测试故障转移">测试故障转移</h3>
+<p><strong>在配置文件中添加配置 enable-debug-command yes，然后重启</strong>，才能执行 <code>debug segfault</code>。<br>
+触发故障转移，最简单的（这也是分布式系统中可能发生的语义上最简单的故障）是使单个进程崩溃。</p>
+<p>可以使用以下命令查看主节点：</p>
+<pre><code class="language-bash">$ redis-cli -p 7000 cluster nodes | grep master
+5d35bda6ad172d2bef65791657065794c2b06225 127.0.0.1:7000@17000 myself,master - 0 1697091768000 7 connected 0-5961 10923-11421
+2a4af186044cf3a0264e90d20a8ebce778a79df1 127.0.0.1:7002@17002 master - 0 1697091768000 3 connected 11422-16383
+9ee6e1a99dc0e1a6aa41666f70a3132bd2fa6e41 127.0.0.1:7001@17001 master - 0 1697091767571 2 connected 5962-10922
+</code></pre>
+<p>可以看到 7000、7001、7002 是主节点，然后，使用 <code>DEBUG SEGAULT</code> 命令使主节点 7002 崩溃：</p>
+<pre><code class="language-bash">$ redis-cli -p 7002 debug segfault
+Error: Server closed the connection
+</code></pre>
+<p>现在可以查看一致性测试的输出：</p>
+<pre><code class="language-txt">18849 R (0 err) | 18849 W (0 err) |
+23151 R (0 err) | 23151 W (0 err) |
+27302 R (0 err) | 27302 W (0 err) |
+...
+29659 R (578 err) | 29660 W (577 err) |
+33749 R (578 err) | 33750 W (577 err) |
+37918 R (578 err) | 37919 W (577 err) |
+42077 R (578 err) | 42078 W (577 err) |
+</code></pre>
+<p>在故障转移期间，系统无法接受 578 次读取和 577 次写入，但是数据库中没有出现不一致情况。 这听起来可能出乎意料，因为在本教程的第一部分中，指出 Redis 集群可能会在故障转移期间丢失写入，因为它使用异步复制。 没有说的是，这种情况不太可能发生，因为 Redis 几乎同时向客户端发送回复，并将复制命令发送到副本，因此丢失数据的窗口非常小。 但很难触发并不意味着不可能，所以这并不会改变 Redis 集群提供的一致性保证。</p>
+<p>现在可以检查故障转移后的集群设置是什么（请注意，同时重新启动了崩溃的实例，以便它作为副本重新加入集群）：</p>
+<pre><code class="language-bash">$  redis-cli -p 7000 cluster nodes
+bcfdb9cb8cea74d4392512e5ce9d1595f78b58b7 127.0.0.1:7003@17003 slave 9ee6e1a99dc0e1a6aa41666f70a3132bd2fa6e41 0 1697092771903 2 connected
+514272b9dcd053f2ec4ff62a268fa2eeb1f93dbd 127.0.0.1:7005@17005 slave 5d35bda6ad172d2bef65791657065794c2b06225 0 1697092770000 7 connected
+5d35bda6ad172d2bef65791657065794c2b06225 127.0.0.1:7000@17000 myself,master - 0 1697092771000 7 connected 0-5961 10923-11421
+2a4af186044cf3a0264e90d20a8ebce778a79df1 127.0.0.1:7002@17002 slave 58680287a896d053b2a1005f2ff6a91cdafc604a 0 1697092771402 8 connected
+58680287a896d053b2a1005f2ff6a91cdafc604a 127.0.0.1:7004@17004 master - 0 1697092771000 8 connected 11422-16383
+9ee6e1a99dc0e1a6aa41666f70a3132bd2fa6e41 127.0.0.1:7001@17001 master - 0 1697092770000 2 connected 5962-10922
+</code></pre>
+<p>现在，主服务器在端口 7000、7001 和 7004 上运行。以前的主服务器（即在端口 7002 上运行的 Redis 实例）现在是 7004 的副本。</p>
+<p><code>CLUSTER NODES</code> 命令的输出可能看起来很复杂，但实际上非常简单，并且由以下标记组成：</p>
+<ul>
+<li>节点ID</li>
+<li>IP:端口</li>
+<li>标志：主、从、自己、失败</li>
+<li>如果是从，则为主节点的节点 ID</li>
+<li>最后一次等待 PING 等待回复的时间。</li>
+<li>最后收到 PONG 的时间。</li>
+<li>该节点的配置纪元（请参阅集群规范）。</li>
+<li>到该节点的连接的状态。</li>
+<li>哈希槽</li>
+</ul>
+<h3 id="手动故障转移">手动故障转移</h3>
+<p>有时，强制故障转移而不会对主节点造成任何问题是很有用的。 例如，要升级主节点的 Redis 进程，最好对其进行故障转移，将其转变为副本，同时对可用性的影响最小。</p>
+<p>Redis 集群支持使用 <code>CLUSTER FAILOVER</code> 命令进行手动故障转移，该命令必须在要进行故障转移的主节点的副本之一中执行。</p>
+<p>手动故障转移很特殊，并且与实际主故障导致的故障转移相比更安全。 它们以一种避免故障转移过程中数据丢失的方式进行，仅当系统确定新主节点处理了旧主节点的所有复制时，才切换主从。</p>
+<p>执行手动故障转移时在副本日志中将看到日下内容：</p>
+<pre><code class="language-txt"># Manual failover user request accepted.
+# Received replication offset for paused master manual failover: 347540
+# All master replication stream processed, manual failover can start.
+# Start of election delayed for 0 milliseconds (rank #0, offset 347540).
+# Starting a failover election for epoch 7545.
+# Failover election won: I'm the new master.
+</code></pre>
+<h3 id="添加节点">添加节点</h3>
+<p>添加新节点的第一步是添加一个空节点，然后将一些数据移入其中（如果它是新主节点），或者告诉它设置为已知节点的副本（如果它是副本）。这里会展示添加主从节点。</p>
+<h4 id="添加主节点">添加主节点。</h4>
+<p>在终端中打开一个新 tab，进入 cluster-test 目录，创建名为 7006 的目录，在里面创建一个 redis.conf 文件，与其他节点使用的文件类似，但使用 7006 作为端口号。最后使用 <code>redis-server redis.conf</code> 启动服务器。</p>
+<p>现在，使用 redis-cli 来将节点添加到现有集群中：</p>
+<pre><code class="language-bash">redis-cli --cluster add-node 127.0.0.1:7006 127.0.0.1:7000
+</code></pre>
+<p>使用 <code>add-node</code> 命令加入集群，第一个参数是新节点的地址，第二个参数是集群中任意一个节点的地址。<br>
+现在可以连接到新节点来看看它是否真的加入了集群：</p>
+<pre><code class="language-bash">$ redis-cli -h 127.0.0.1 -p 7006
+127.0.0.1:7006&gt; cluster nodes
+5d35bda6ad172d2bef65791657065794c2b06225 127.0.0.1:7000@17000 master - 0 1697094039602 7 connected 0-5961 10923-11421
+58680287a896d053b2a1005f2ff6a91cdafc604a 127.0.0.1:7004@17004 master - 0 1697094039501 8 connected 11422-16383
+2a4af186044cf3a0264e90d20a8ebce778a79df1 127.0.0.1:7002@17002 slave,fail - 1697093742395 0 0 disconnected
+9ee6e1a99dc0e1a6aa41666f70a3132bd2fa6e41 127.0.0.1:7001@17001 master - 0 1697094040000 2 connected 5962-10922
+57e63c3535f293425cc6573d15b24fa38920ae22 127.0.0.1:7006@17006 myself,master - 0 1697094040000 0 connected
+514272b9dcd053f2ec4ff62a268fa2eeb1f93dbd 127.0.0.1:7005@17005 slave 5d35bda6ad172d2bef65791657065794c2b06225 0 1697094039602 7 connected
+bcfdb9cb8cea74d4392512e5ce9d1595f78b58b7 127.0.0.1:7003@17003 slave 9ee6e1a99dc0e1a6aa41666f70a3132bd2fa6e41 0 1697094040605 2 connected
+</code></pre>
+<p>注意，由于该节点已经连接到集群，因此它已经能够正确重定向客户端查询，并且通常是集群的一部分。 但与其主节点相比，它有两个不同：</p>
+<ul>
+<li>它不保存任何数据，因为它没有分配哈希槽。</li>
+<li>因为它是一个没有分配哈希槽的master，所以当replica想要成为master时，它不参与选举过程。</li>
+</ul>
+<p>如同前面重新分片，也可以使用 redis-cli 的重新分片功能将哈希槽分配给该节点。</p>
+<h4 id="添加从节点">添加从节点</h4>
+<p>添加新副本可以通过两种方式执行。 最简单的方法是 redis-cli，并且使用 <code>--cluster-slave</code> 选项，如下所示：</p>
+<pre><code class="language-bash">redis-cli --cluster add-node 127.0.0.1:7007 127.0.0.1:7000 --cluster-slave
+</code></pre>
+<p>此处的命令与添加主节点命令相同，因此没有指定该节点的主节点。这种情况下，redis-cli 会将新节点添加为从节点较少的主节点的从节点。</p>
+<p>但是，也可以使用以下命令指定成为指定主节点的从节点：</p>
+<pre><code class="language-bash">redis-cli --cluster add-node 127.0.0.1:7007 127.0.0.1:7000 --cluster-slave --cluster-master-id 5d35bda6ad172d2bef65791657065794c2b06225
+</code></pre>
+<h3 id="移除节点">移除节点</h3>
+<p>要删除副本节点，只需使用 redis-cli 的 <code>del-node</code> 命令：</p>
+<pre><code class="language-bash">redis-cli --cluster del-node 127.0.0.1:7000 `&lt;node-id&gt;`
+</code></pre>
+<p>第一个参数是集群中任意一个节点，第二个参数是要待删除节点的 ID。</p>
+<p>可以以相同的方式删除主节点，但是它必须为空主节点。 如果主节点不为空，则在删除之前须将其数据重新分片到所有其他主节点。</p>
+<p>删除主节点的另一种方法是对其执行手动故障转移，并在该节点变成新主节点的副本后删除该节点。</p>
+<h3 id="副本迁移">副本迁移</h3>
+<p>有一种特殊的情况，希望副本自动从一个主节点迁移到另一个主节点，而无需系统管理员的帮助。副本的自动重新配置称为副本迁移，能够提高Redis集群的可靠性。在 Redis 集群中，可以使用以下命令将从节点配置为另一个主节点的从节点：</p>
+<pre><code class="language-bash">CLUSTER REPLICATE &lt;master-node-id&gt;
+</code></pre>
+<p>在某些情况下，可能希望让集群副本从一个主节点移动到另一个主节点，因为通常 Redis 集群对故障的抵抗能力与定主节点的副本数量一样。例如，如果主节点只有一个副本，同事发生故障时，集群将无法继续操作，因为没有其他实例有主节点的哈希槽的副本。</p>
+<p>为了提高系统的可靠性，可以选择向每个主节点添加额外的副本，但这很昂贵。 副本迁移允许向一些主节点添加额外副本。 例如，有 10 个主节点，每个主节点有 1 个副本，总共 20 个实例。 但是，可以添加 3 个实例作为某些主实例的副本，即某些主实例将拥有多个副本。</p>
+<p>通过副本迁移，可以具有多个副本的主节点中的副本迁移到没有副本的主节点，作为其副本。 因此，当副本在凌晨 4 点出现故障后，另一个副本将取代它，并且当主服务器在凌晨 5 点也发生故障时，仍然可以选举一个副本，以便集群可以继续运行 操作。</p>
+<p>关于副本迁移，以下三点需要了解</p>
+<ul>
+<li>集群将尝试从拥有最多副本数的主节点迁移副本</li>
+<li>要从副本迁移中受益，只需向集群中的某个主节点添加更多副本</li>
+<li>cluster-migration-barrier配置控制副本迁移功能</li>
+</ul>
+<h3 id="升级-redis-集群中的节点">升级 Redis 集群中的节点</h3>
+<p>升级副本节点很容易，因为只需停止节点并使用更新版本的 Redis 重新启动它。 如果存在使用副本节点读取的客户端，则当副本不可用时，它们应该能够重新连接到其他副本。</p>
+<p>升级则稍显复杂，建议的过程是：</p>
+<ol>
+<li>使用 CLUSTER FAILOVER 触发主节点到其副本之一的手动故障转移。</li>
+<li>等待主节点变成从节点。</li>
+<li>最后像升级副本一样升级节点。</li>
+</ol>
+<p>如果希望主节点成为刚刚升级的节点，请触发新的手动故障转移，以便将升级后的节点恢复为主节点。</p>
+<p>按照此过程，依次升级一个节点，直到升级所有节点。</p>
+<h3 id="迁移到-redis-集群">迁移到 Redis 集群</h3>
+<p>愿意迁移到 Redis 集群的用户可能只有一个主节点，或者可能已经使用了预先存在的分片设置，其中key 在 N 个节点之间分配，使用一些内部算法或由其客户端库或 Redis 代理实现的分片算法。</p>
+<p>在这两种情况下，都可以轻松迁移到 Redis 集群，但最重要的细节是应用程序是否使用多 key 操作以及如何使用。 存在三种不同的情况：</p>
+<ul>
+<li>不使用多个 key 操作、事务、或涉及多个 key 的 Lua 脚本（即使通过事务或 Lua 脚本将多个命令（关于同一 key）分组在一起进行访问）。</li>
+<li>使用涉及多个 key 的多个操作、事务、 Lua 脚本，但仅限于具有相同哈希标签的 key，这意味着一起使用的键都具有恰好相同的 {...} 子字符串。 例如，SUNION {user:1000}.foo {user:1000}.bar 是在同一哈希标签的上下文中定义。</li>
+<li>多个 key 操作、事务或涉及多个键的 Lua 脚本与不具有显式或相同哈希标签的 key 一起使用。</li>
+</ul>
+<p>第三种情况不是由 Redis 集群处理的：需要修改应用程序，不使用多 key 操作或仅在同一哈希标签的上下文中使用它们。</p>
+<p>假设预先存在的数据集拆分为 N 个主节点，如果没有预先存在的分片，则 N=1，则需要执行以下步骤才能将数据集迁移到 Redis 集群：</p>
+<ol>
+<li>停止客户端。 目前无法自动实时迁移到 Redis 集群。</li>
+<li>使用 BGREWRITEAOF 命令为所有 N 个 master 生成 AOF 文件（aof-1~ aof-n），并等待 AOF 文件完全生成。</li>
+<li>将 AOF 文件 保存到某处。</li>
+<li>创建一个由 N 个主节点和 0 个副本节点组成的 Redis 集群。 确保所有节点都使用 AOF 持久化方式。</li>
+<li>停止所有集群节点，替换它们的 AOF 文件，第一个节点使用 aof-1，第二个节点使用 aof-2，以此类推。</li>
+<li>使用新的 AOF 文件重新启动 Redis 集群节点。会提示有些 key 根据节点的配置不应该在该节点。</li>
+<li>使用 <code>redis-cli --cluster fix</code> 命令修复集群，以便根据哈希槽来迁移 key。</li>
+<li>最后使用 <code>redis-cli --cluster check</code> 确保集群正常。</li>
+<li>重新启动修改为使用 Redis 集群感知客户端库的客户端。</li>
+</ol>
+<p>还有一种将数据从外部实例导入到 Redis 集群的替代方法，即使用 <code>redis-cli --cluster import</code> 命令。</p>
+<p>该命令将正在运行的实例的所有 key（从源实例中删除key）移动到指定的预先存在的 Redis 集群。 但是，如果使用 Redis 2.8 实例作为源实例，操作可能会很慢，因为 2.8 没有实现迁移连接缓存，因此可能需要使用 Redis 3.x 版本重新启动源实例才能执行此类操作。</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Redis 集群（1）Redis 集群概念]]></title>
+        <id>https://flipped94.github.io/post/qMbMReIQX/</id>
+        <link href="https://flipped94.github.io/post/qMbMReIQX/">
+        </link>
+        <updated>2023-10-09T07:47:48.000Z</updated>
+        <content type="html"><![CDATA[<p>Redis 集群提供了一种数据在多个 Redis 节点之间自动分片存储的运行模式。Redis 集群模式提供一定程度的高可用：在某些节点发生故障或无法通信时仍然可用。但是，如果发生更大的故障（例如，当大多数主节点不可用时），集群将停止服务。</p>
+<p>因此，借助 Redis 集群，可以：</p>
+<ul>
+<li>自动将数据分布到多个节点。</li>
+<li>当部分节点故障或无法与集群的其余节点通信时仍然可用。</li>
+</ul>
+<h3 id="redis-集群-tcp-端口">Redis 集群 TCP 端口</h3>
+<p>每个 Redis 集群节点都需要两个打开的 TCP 连接：一个为客户端提供服务的端口（例如 6379）和一个集群总线端口。 默认情况下，集群总线端口是前者接口+10000（例如16379）。</p>
+<p>集群总线是一种使用二进制协议的节点到节点的通信通道，由于带宽和处理时间较小，更适合在节点之间交换信息。 节点使用集群总线进行故障检测、配置更新、故障转移授权等。 客户端永远不应尝试与集群总线端口进行通信，而应使用客户端通信端口。 需要确保在防火墙中开放这两个端口，否则 Redis 集群节点将无法通信。</p>
+<p>为了使 Redis 集群正常工作，节点端口需要遵循如下原则：</p>
+<ul>
+<li>客户端通信端口（例如6379）需要开放给所有与集群交互的客户端和集群内的其它节点(主要是用来做 keys 迁移)</li>
+<li>集群总线端口（例如16379）需要能被集群其它所有节点访问。</li>
+</ul>
+<h3 id="redis集群数据分片">Redis集群数据分片</h3>
+<p>Redis 集群不使用一致性哈希，而是使用哈希槽。整个 Redis 集群有16384个哈希槽，决定一个 key 应该分配到那个槽的算法是：计算该 key 的 CRC16 结果再模 16834。</p>
+<p>集群中的每个节点负责一部分哈希槽，比如集群中有３个节点，则：</p>
+<ul>
+<li>节点 Ａ 存储的哈希槽范围是：0 -- 5500</li>
+<li>节点 Ｂ 存储的哈希槽范围是：5501 -- 11000</li>
+<li>节点 Ｃ 存储的哈希槽范围是：11001 -- 16384</li>
+</ul>
+<p>这样的分布方式方便节点的添加和删除。比如，需要新增一个节点Ｄ，只需要把 Ａ、Ｂ、Ｃ 中的部分哈希槽数据移到 Ｄ 节点。同样，如果希望在集群中删除 Ａ 节点，只需要把 Ａ 节点的哈希槽的数据移到 Ｂ 和 Ｃ 节点，当 Ａ 节点的数据全部被移走后，Ａ 节点就可以完全从集群中删除。</p>
+<p>因为把哈希槽从一个节点移到另一个节点不需要停机，所以，增加或删除节点，或更改节点上的哈希槽，也不需要停机。</p>
+<p>Redis 集群支持多个 key 操作，只要单个命令执行（或整个事务，或Lua脚本执行）涉及的所有 key 属于同一个哈希槽。可以通过使用称为哈希标签的功能强制多个 key 分配到同一个哈希槽。</p>
+<p>如果 key 含有大括号 <code>{}</code>，则只有大括号中的字符串进行哈希处理。 例如，&quot;user:{123}:profile&quot; 和 &quot;user:{123}:account&quot; 会分配到同一哈希槽，因为它们哈希标签相同。所以，可以在一个命令中同时操作他们。</p>
+<h3 id="redis集群主从模型">Redis集群主从模型</h3>
+<p>为了保证在部分节点故障或网络不通时集群依然能正常工作，集群使用了主从模型，每个哈希槽有一（主节点）到N个副本（N-1个从节点）。</p>
+<p>在刚才的集群例子中，有 A, B, C 三个节点，如果 B 节点故障集群就不能正常工作了，因为不再有办法为 5501-11000 范围内的哈希槽提供服务。</p>
+<p>但是，如果给每一个节点都增加一个从节点，就变成了：A , B, C 三个节点是主节点，A1,  B1,  C1 分别是他们的从节点，当 B 节点宕机时，集群也能正常运作。<br>
+在我们的具有节点 A、B、C 的示例集群中，如果节点 B 发生故障，集群将无法继续，因为我们不再有办法为 5501-11000 范围内的哈希槽提供服务。</p>
+<p>B1 节点是 B 节点的副本，如果 B 节点故障，集群会提升 B1 为主节点，从而让集群继续正常工作。但是，如果 B 和 B1 同时故障，集群就不能继续工作了。</p>
+<h3 id="redis集群一致性保证">Redis集群一致性保证</h3>
+<p>Redis 集群不保证强一致性，这意味着在某些情况下，Redis 集群可能会丢失写入。</p>
+<p>Redis 集群丢失写入的第一个原因是它使用异步复制。 这意味着在写入期间会发生以下情况：</p>
+<ul>
+<li>客户端向主节点 B 发起写的操作</li>
+<li>主节点 B 响应客户端写操作成功</li>
+<li>主节点 B 向它的从节点 B1, B2, B3 同步该写操作</li>
+</ul>
+<p>从上面的流程可以看出来，B 在响应客户端之前不会等待 B1、B2、B3 的确认（这通常会导致性能过低）。所以，如果主节点 B 在通知客户端写操作成功之后，同步给从节点之前，主节点 Ｂ 故障了，其中一个没有收到该写操作的从节点会晋升成主节点，该写操作就这样永远丢失了。</p>
+<p>所以，需要在性能和一致性之间进行权衡。</p>
+<p>如果真的需要，Redis集群支持同步复制的方式，通过 WAIT 指令来实现，这可以让丢失写操作的可能性降到很低。但就算使用了同步复制的方式，Redis 集群依然不是强一致性的，在某些复杂的情况下，比如从节点在与主节点失去连接之后被选为主节点，不一致性还是会发生。</p>
+<p>还有另一种值得注意的情况，Redis 集群会丢失写入，这种情况发生在网络分区期间，客户端与少数实例（至少包括一个主实例）隔离。以 6 节点集群为例，当网络出问题时，他们被分成２组网络，组内网络联通，但２组之间的网络不通，假设 A, C, A1, B1, C1 彼此之间是联通的，另一边，B 和 Z1 的网络是联通的。Z1 可以继续往 B 发起写操作，Ｂ 也接受 Z1 的写操作。当网络恢复时，如果这个时间间隔足够短，集群仍然能继续正常工作。如果时间比较长，以致B1在大多数的这边被选为主节点，那刚才Z1发给Ｂ的写操作都将丢失。</p>
+<p>注意，Z1给Ｂ发送写操作是有一个限制的，如果时间长度达到了大多数节点那边可以选出一个新的主节点时，少数这边的所有主节点都不接受写操作。这个时间的配置，称之为节点超时（node timeout），对集群来说非常重要，当达到了这个节点超时的时间之后，主节点被认为已经宕机，可以用它的一个从节点来代替。同样，在节点超时时，如果主节点依然不能联系到其他主节点，它将进入错误状态，不再接受写操作。</p>
+<h3 id="redis集群配置参数">Redis集群配置参数</h3>
+<p><code>cluster-enabled &lt;yes/no&gt;</code>：如果配置 &quot;yes&quot; 则开启集群功能，此 Redis 实例作为集群的一个节点，否则，它是一个普通的单 Redis 实例。<br>
+<code>cluster-config-file &lt;文件名&gt;</code>：虽然此配置的名字叫 &quot;集群配置文件&quot;，但是此配置文件不可编辑，它是集群节点自动维护的文件，主要用于记录集群中有哪些节点、他们的状态以及一些持久化参数等，方便在重启时恢复这些状态。通常是在收到请求之后这个文件就会被更新。<br>
+<code>cluster-node-timeout &lt;毫秒&gt;</code>：这是集群中的节点能够失联的最大时间，超过这个时间，该节点就会被认为故障。如果主节点超过这个时间还是不可达，则它的从节点将启动故障迁移，升级成主节点。注意，任何一个节点在这个时间之内如果还是没有连上大部分的主节点，则此节点将停止接收任何请求。<br>
+<code>cluster-slave-validity-factor &lt;factor&gt;</code>：如果设置成０，则无论从节点与主节点失联多久，从节点都会尝试升级成主节点。如果设置成正数，则 <code>cluster-node-timeout</code> 乘以<code>cluster-slave-validity-factor</code> 得到的时间，是从节点与主节点失联后，此从节点数据有效的最长时间，超过这个时间，从节点不会启动故障迁移。假设 <code>cluster-node-timeout=5</code>，<code>cluster-slave-validity-factor=10</code>，则如果从节点跟主节点失联超过50秒，此从节点不能成为主节点。注意，<strong>如果此参数配置为非0，将可能出现由于某主节点失联却没有从节点能顶上的情况，从而导致集群不能正常工作，在这种情况下，只有等到原来的主节点重新回归到集群，集群才恢复</strong>。<br>
+<code>cluster-migration-barrier &lt;count&gt;</code>：主节点需要的最小从节点数，只有达到这个数，主节点失败时，它从节点才会进行迁移。<br>
+<code>cluster-require-full-coverage &lt;yes/no&gt;</code>：在部分 key 所在的节点不可用时，如果此参数设置为 &quot;yes&quot; (默认值), 则整个集群停止接受操作；如果此参数设置为 &quot;no&quot;，则集群依然为可达节点上的 key 提供读操作。<br>
+<code>cluster-allow-reads-when-down &lt;yes/no&gt;</code>：默认是 &quot;no&quot;，表示当集群因主节点数量达不到最小值或者哈希槽没有完全分配而被标记为失效时，节点将停止所有客户端请求。设置成 &quot;yes&quot;，则允许集群失效的情况下依然可从节点中读取数据，保证了高可用。</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[ArrayList 扩容分析]]></title>
+        <id>https://flipped94.github.io/post/g8uDppTc1/</id>
+        <link href="https://flipped94.github.io/post/g8uDppTc1/">
+        </link>
+        <updated>2023-07-06T02:10:58.000Z</updated>
+        <content type="html"><![CDATA[<p>本文介绍 ArrayList 的扩容过程。ArrayList 底层是数组 elementData，用于存放插入的数据。它的容量能动态增长。在添加大量元素前，应用程序可以使用 ensureCapacity 操作来增加 ArrayList 实例的容量。这可以减少递增式再分配的数量。</p>
+<p>ArrayList 的核心字段如下：</p>
+<pre><code class="language-java">    /**
+     * 默认初始容量
+     */
+    private static final int DEFAULT_CAPACITY = 10;
+
+    /**
+     * 空实例共享这个数组
+     */
+    private static final Object[] EMPTY_ELEMENTDATA = {};
+
+    /**
+     * 无参构造方法创建的实例共享这个数组。
+     * 与 EMPTY_ELEMENTDATA 区分，是为了知道第一次添加元素时扩容多少
+     */
+    private static final Object[] DEFAULTCAPACITY_EMPTY_ELEMENTDATA = {};
+
+    /**
+     * 实际存储元素的数组，ArrayList 的容量是这个数组的长度。
+     * 所有无参构造方法创建的实例 elementData 都是 DEFAULTCAPACITY_EMPTY_ELEMENTDATA
+     * 首次添加元素时扩容到 DEFAULT_CAPACITYThe
+     */
+    transient Object[] elementData; // non-private to simplify nested class access
+
+    /**
+     * 元素个数
+     */
+    private int size;
+
+    /**
+     * 可以分配容量的最大值，尝试分配更大内存会抛出 OutOfMemoryError
+     */
+    private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
+</code></pre>
+<p>ArrayList 的构造方法：</p>
+<pre><code class="language-java">    /**
+     * 创建指定容量的空列表
+     * 
+     * @param  initialCapacity  列表初始容量
+     * @throws IllegalArgumentException 如果列表初始容量小于零抛出非法参数异常
+     * 
+     */
+    public ArrayList(int initialCapacity) {
+        if (initialCapacity &gt; 0) {
+            // 创建 initialCapacity 大小的数组
+            this.elementData = new Object[initialCapacity];
+        } else if (initialCapacity == 0) {
+            // 赋值空数组
+            this.elementData = EMPTY_ELEMENTDATA;
+        } else {
+            // 初始容量小于零抛出非法参数异常
+            throw new IllegalArgumentException(&quot;Illegal Capacity: &quot; + initialCapacity);
+        }
+    }
+
+    /**
+     * 创建初始容量为10的空列表
+     */
+    public ArrayList() {
+        // 默认空数组
+        this.elementData = DEFAULTCAPACITY_EMPTY_ELEMENTDATA;
+    }
+
+    /**
+     * 按照集合的迭代器返回的顺序构造包含指定集合的元素的列表。
+     *
+     * @param c 要将其元素放入列表的集合
+     * @throws NullPointerException 如果集合为 null，抛出 NullPointerException 异常
+     */
+    public ArrayList(Collection&lt;? extends E&gt; c) {
+        // 如果 C 为 nul，抛出 NullPointerException 异常
+        Object[] a = c.toArray();
+        if ((size = a.length) != 0) {
+            // 如果 c 也是 ArrayList，直接赋值
+            if (c.getClass() == ArrayList.class) {
+                elementData = a;
+            } else {
+                // 如果不是，则拷贝元素
+                elementData = Arrays.copyOf(a, size, Object[].class);
+            }
+        } else {
+            // 空数组
+            elementData = EMPTY_ELEMENTDATA;
+        }
+    }
+</code></pre>
+<p>无参数构造方法创建 <code>ArrayList</code> 时，元素数组被赋值默认空数组。当首次添加元素时分配容量 10 的数组。</p>
+<p>以 <code>public boolean add(E e)</code> 为例，分析扩容机制。</p>
+<pre><code class="language-java">    /**
+     * 将元素添加到列表末尾
+     *
+     * @param e 待添加的元素
+     * @return &lt;tt&gt;true&lt;/tt&gt; 
+     */
+    public boolean add(E e) {
+        // 检查容量和扩容，size+1 为所需最小容量
+        ensureCapacityInternal(size + 1);
+        // 添加元素
+        elementData[size++] = e;
+        return true;
+    }
+</code></pre>
+<p>在看 <code>ensureCapacityInternal</code> 方法：</p>
+<pre><code class="language-java">private void ensureCapacityInternal(int minCapacity) {
+    ensureExplicitCapacity(calculateCapacity(elementData, minCapacity));
+}
+</code></pre>
+<p>首先，<code>ensureCapacityInternal</code> 方法调用 <code>calculateCapacity</code> 计算所需最小容量：如果是默认空列表首次添加元素，最小容量为默认容量（<code>DEFAULT_CAPACITY</code>，即 10），否则为当前元素个数 + 1。</p>
+<pre><code class="language-java">private static int calculateCapacity(Object[] elementData, int minCapacity) {
+    if (elementData == DEFAULTCAPACITY_EMPTY_ELEMENTDATA) {
+        return Math.max(DEFAULT_CAPACITY, minCapacity);
+    }
+    return minCapacity;
+}
+</code></pre>
+<p>然后，调用<code>ensureExplicitCapacity</code>方法执行是否扩容判断和扩容：</p>
+<pre><code class="language-java">private void ensureExplicitCapacity(int minCapacity) {
+    modCount++;
+    // 扩容判断
+    if (minCapacity - elementData.length &gt; 0)
+        grow(minCapacity);
+}
+</code></pre>
+<p>如果当前容量小于所需最小容量，则执行扩容逻辑，即 grow 方法表示开始真正扩容：</p>
+<pre><code class="language-java">    /**
+     * 增加容量以确保至少可以容纳由最小容量参数指定的元素数量。
+     *
+     * @param minCapacity 所需最小容量
+     */
+    private void grow(int minCapacity) {
+        // 旧容量
+        int oldCapacity = elementData.length;
+        // 新容量为旧容量的 1.5 倍
+        int newCapacity = oldCapacity + (oldCapacity &gt;&gt; 1);
+        // 如果新容量比最小容量小，则新容量为最小容量
+        if (newCapacity - minCapacity &lt; 0)
+            newCapacity = minCapacity;
+        // 如果新容量比列表最大容量大，则会进行大容量处理
+        if (newCapacity - MAX_ARRAY_SIZE &gt; 0)
+            // 如果所需最小容量大于列表最大容量，则新容量为 Integer.MAX_VALUE，否则为 MAX_ARRAY_SIZE
+            newCapacity = hugeCapacity(minCapacity);
+        // 扩容
+        elementData = Arrays.copyOf(elementData, newCapacity);
+    }
+
+    private static int hugeCapacity(int minCapacity) {
+        // 溢出抛出 OutOfMemoryError 异常
+        if (minCapacity &lt; 0) // overflow
+            throw new OutOfMemoryError();
+        return (minCapacity &gt; MAX_ARRAY_SIZE) ? Integer.MAX_VALUE : MAX_ARRAY_SIZE;
+    }
+</code></pre>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Java 内存结构]]></title>
+        <id>https://flipped94.github.io/post/gnbZ_m69L/</id>
+        <link href="https://flipped94.github.io/post/gnbZ_m69L/">
+        </link>
+        <updated>2023-06-21T01:59:16.000Z</updated>
+        <content type="html"><![CDATA[<p>来源《深入理解Java虚拟机 JVM 高级特性与最佳实战》</p>
+<p>JVM 内存结构与 Java 内存模型容易混淆，其实它们是不同的。两者的主要作用：</p>
+<ul>
+<li>JVM 内存结构和 Java 虚拟机的运行时区域有关。</li>
+<li>Java 内存模型和 Java 的并发编程有关。</li>
+</ul>
+<p>执行 Java 程序的过程中，Java 虚拟机在会把它管理的内存划分成若干个不同的数据区域：</p>
+<ul>
+<li>线程私有：
+<ul>
+<li>程序计数器</li>
+<li>虚拟机栈</li>
+<li>本地方法栈</li>
+</ul>
+</li>
+<li>线程共享：
+<ul>
+<li>堆</li>
+<li>方法区</li>
+<li>直接内存 (非运行时数据区的一部分)</li>
+</ul>
+</li>
+</ul>
+<h2 id="程序计数器">程序计数器</h2>
+<p>程序计数器可以看作是当前线程所执行的字节码的行号指示器。字节码解释器工作时通过改变这个计数器的值来选取下一条需要执行的字节码指令，分支、循环、跳转、异常处理、线程恢复等功能都需要依赖这个计数器来完成。<br>
+程序计数器是唯一一个不会出现 OutOfMemoryError 的内存区域，它的生命周期随着线程的创建而创建，随着线程的结束而死亡。</p>
+<h2 id="虚拟机栈">虚拟机栈</h2>
+<p>Java 虚拟机栈的生命周期和线程相同，随着线程的创建而创建，随着线程的死亡而死亡。除了一些 Native 方法调用是通过本地方法栈实现，其他所有的 Java 方法调用都是通过栈来实现的（也需要和其他运行时数据区域比如程序计数器配合）。方法调用的数据需要通过栈进行传递，每一次方法调用都会有一个对应的栈帧被压入栈中，每一个方法调用结束后，都会有一个栈帧被弹出。栈由一个个栈帧组成，而每个栈帧中都拥有：局部变量表、操作数栈、动态链接、方法返回地址。<br>
+局部变量表 主要存放了编译期可知的各种数据类型（boolean、byte、char、short、int、float、long、double）、对象引用（reference 类型，它不同于对象本身，可能是一个指向对象起始地址的引用指针，也可能是指向一个代表对象的句柄或其他与此对象相关的位置）。<br>
+程序运行中栈可能会出现两种错误：</p>
+<ul>
+<li>StackOverFlowError： 若栈的内存大小不允许动态扩展，那么当线程请求栈的深度超过当前 Java 虚拟机栈的最大深度的时候，就抛出 StackOverFlowError 错误。</li>
+<li>OutOfMemoryError： 如果栈的内存大小可以动态扩展， 如果虚拟机在动态扩展栈时无法申请到足够的内存空间，则抛出 OutOfMemoryError 异常。</li>
+</ul>
+<h2 id="本地方法栈">本地方法栈</h2>
+<p>和虚拟机栈所发挥的作用非常相似，区别是：<strong>虚拟机栈为虚拟机执行 Java 方法 （也就是字节码）服务，而本地方法栈则为虚拟机使用到的 Native 方法服务</strong>。<br>
+与虚拟机栈一样，本地方法栈也会在栈深度溢出或者栈扩展失败时分别抛出 StackOverFlowError 和 OutOfMemoryError 两种异常。</p>
+<h2 id="堆">堆</h2>
+<p>堆唯一目的就是存放对象实例，几乎所有的对象实例以及数组都在这里分配内存。Java 世界中“几乎”所有的对象都在堆中分配，但是，随着 JIT 编译器的发展与逃逸分析技术逐渐成熟，如果某些方法中的对象引用没有被返回或者未被外面使用（也就是未逃逸出去），那么对象可以直接在栈上分配内存。Java 堆是垃圾收集器管理的主要区域，因此也被称作 GC 堆（Garbage Collected Heap）。从垃圾回收的角度，由于现在收集器基本都采用分代垃圾收集算法，所以 Java 堆还可以细分为：新生代和老年代；再细致一点有：Eden、Survivor、Old 等空间。进一步划分的目的是更好地回收内存，或者更快地分配内存。<br>
+在 JDK 7 版本及 JDK 7 版本之前，堆内存被通常分为下面三部分：</p>
+<ul>
+<li>新生代内存(Young Generation)</li>
+<li>老生代(Old Generation)</li>
+<li>永久代(Permanent Generation)<br>
+Java 堆既可以被实现成固定大小的，也可以是可扩展的，不过主流是可扩展的（通过-Xmx和Xms设定），如果在堆中没有内存完成实例分配，并且堆再也无法扩展时，将会抛出 OutOfMemoryError 异常。</li>
+</ul>
+<h2 id="方法区">方法区</h2>
+<p>方法区会存储已被虚拟机加载的 类信息、字段信息、方法信息、常量、静态变量、即时编译器编译后的代码缓存等数据。永久代是 JDK 1.8 之前的方法区实现，JDK 1.8 及以后方法区的实现变成了元空间。如果方法去无法满足新的内存分配需求时将会抛出 OutOfMemoryError 异常。</p>
+<h2 id="运行时常量池">运行时常量池</h2>
+<p>运行时常量池是方法区的一部分，Class 文件中除了有类的版本、字段、方法、接口等描述信息外，还有用于存放编译期生成的各种字面量（Literal）和符号引用（Symbolic Reference）的 常量池表，这部分内容会在类加载后存放到方法区的运行时常量池中。运行时常量池是方法区的一部分，自然受到方法区内存的限制，当常量池无法再申请到内存时会抛出 OutOfMemoryError 异常。</p>
+<h2 id="字符串常量池">字符串常量池</h2>
+<p>字符串常量池 是 JVM 为了提升性能和减少内存消耗针对字符串（String 类）专门开辟的一块区域，主要目的是为了避免字符串的重复创建。JDK1.7 之前，字符串常量池存放在永久代。JDK1.7 字符串常量池和静态变量从永久代移动了 Java 堆中。</p>
+<h2 id="直接内存">直接内存</h2>
+<p>直接内存并不是虚拟机运行时数据区的一部分，也不是虚拟机规范中定义的内存区域，，但是这部分内存也被频繁地使用，可能出现 OutOfMemoryError 异常。直接内存的分配不会受到 Java 堆的限制，但是，既然是内存就会受到本机总内存大小以及处理器寻址空间的限制。</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[MyBatis 启动流程（上）全局配置文件解析]]></title>
+        <id>https://flipped94.github.io/post/joFVkvmFu/</id>
+        <link href="https://flipped94.github.io/post/joFVkvmFu/">
+        </link>
+        <updated>2023-06-19T09:34:14.000Z</updated>
+        <content type="html"><![CDATA[<p>MyBatis 有两方面的 XML 配置，一个是全局配置文件（假设文件名为mybatis-config.xml），另一个是 Mapper.xml 配置文件中的 SQL 语句。在初始化的过程中，MyBatis 会读取全局配置文件以及所有的 Mapper 映射配置文件，同时还会加载这两个配置文件中指定的类，解析类中的相关注解，最终将解析得到的信息转换成配置对象。完成配置加载之后，MyBatis 就会根据得到的配置对象初始化各个模块。</p>
+<h2 id="mybatis-configxml-解析">mybatis-config.xml 解析</h2>
+<p>MyBatis 初始化的第一个步骤就是加载和解析 mybatis-config.xml 这个全局配置文件，入口是 <code>XMLConfigBuilder</code>，它由 <code>SqlSessionFactoryBuilder.build()</code> 方法创建。<code>XMLConfigBuilder</code> 会解析 mybatis-config.xml 配置文件得到对应的 <code>Configuration</code> 全局配置对象，然后 <code>SqlSessionFactoryBuilder</code> 会根据得到的 <code>Configuration</code> 全局配置对象创建一个 <code>DefaultSqlSessionFactory</code> 对象。</p>
+<pre><code class="language-java">@Test
+  public void test() throws IOException {
+    // 读取配置文件
+    try (InputStream resourceAsStream = Resources.getResourceAsStream(&quot;mybatis-config.xml&quot;)) {
+      // 解析配置文件，封装 Configuration 对象，创建 DefaultSqlSessionFactory 对象
+      SqlSessionFactory sqlSessionFactory =
+       new SqlSessionFactoryBuilder().build(resourceAsStream);
+    }
+  }
+</code></pre>
+<p>XMLConfigBuilder 对象的核心功能是解析 mybatis-config.xml 配置文件，它继承自 BaseBuilder 抽象类， BaseBuilder 定义了如下三个字段：</p>
+<ul>
+<li>configuration（Configuration 类型）：MyBatis 初始化解析到的全部配置信息都会记录到 Configuration 对象中。</li>
+<li>typeAliasRegistry（TypeAliasRegistry 类型）：别名注册中心。在配置文件中，使用 <code>&lt;typeAliases&gt;</code> 标签为类定义别名。</li>
+<li>typeHandlerRegistry（TypeHandlerRegistry 类型）：TypeHandler 注册中心。在配置文件中，使用 <code>&lt;typeHandlers&gt;</code> 标签自定义 <code>TypeHandler</code>，实现数据库类型与 Java 类型的自定义转换。</li>
+</ul>
+<p>XMLConfigBuilder 定义了以下核心字段：</p>
+<ul>
+<li>parsed（boolean 类型）：状态标识字段，记录当是否已经成功解析完配置文件。</li>
+<li>parser（XPathParser 类型）：用来解析配置文件的 XML 解析器。</li>
+<li>environment（String 类型）： 标签定义的环境名称。</li>
+<li>localReflectorFactory（ReflectorFactory 类型）：实现对 Reflector 对象的创建和缓存。</li>
+</ul>
+<p><code>XMLConfigBuilder.parse()</code> 方法触发了配置文件的解析：</p>
+<pre><code class="language-java">/**
+   * 解析 mybatis-config.xml 配置文件得到 Configuration 全局配置对象
+   * @return Configuration
+   */
+  public Configuration parse() {
+    if (parsed) {
+      throw new BuilderException(&quot;Each XMLConfigBuilder can only be used once.&quot;);
+    }
+    parsed = true;
+    parseConfiguration(parser.evalNode(&quot;/configuration&quot;));
+    return configuration;
+  }
+</code></pre>
+<p>其中的 <code>parseConfiguration()</code> 方法定义了解析配置文件的完整流程：</p>
+<pre><code class="language-java">// 解析配置文件
+  private void parseConfiguration(XNode root) {
+    try {
+      // 解析 &lt;properties&gt; 标签；
+      propertiesElement(root.evalNode(&quot;properties&quot;));
+      // 解析 &lt;settings&gt; 标签；
+      Properties settings = settingsAsProperties(root.evalNode(&quot;settings&quot;));
+      // 处理日志相关组件；
+      loadCustomVfs(settings);
+      loadCustomLogImpl(settings);
+      // 解析 &lt;typeAliases&gt; 标签；
+      typeAliasesElement(root.evalNode(&quot;typeAliases&quot;));
+      // 解析 &lt;plugins&gt; 标签；
+      pluginElement(root.evalNode(&quot;plugins&quot;));
+      // 解析 &lt;objectFactory&gt; 标签；
+      objectFactoryElement(root.evalNode(&quot;objectFactory&quot;));
+      // 解析 &lt;objectWrapperFactory&gt; 标签；
+      objectWrapperFactoryElement(root.evalNode(&quot;objectWrapperFactory&quot;));
+      // 解析 &lt;reflectorFactory&gt; 标签；
+      reflectorFactoryElement(root.evalNode(&quot;reflectorFactory&quot;));
+      settingsElement(settings);
+      // read it after objectFactory and objectWrapperFactory issue #631
+      // 解析 &lt;environments&gt; 标签；
+      environmentsElement(root.evalNode(&quot;environments&quot;));
+      // 解析 &lt;databaseIdProvider&gt; 标签；
+      databaseIdProviderElement(root.evalNode(&quot;databaseIdProvider&quot;));
+      // 解析 &lt;typeHandlers&gt; 标签；
+      typeHandlerElement(root.evalNode(&quot;typeHandlers&quot;));
+      // 解析 &lt;mappers&gt; 标签。
+      mapperElement(root.evalNode(&quot;mappers&quot;));
+    } catch (Exception e) {
+      throw new BuilderException(&quot;Error parsing SQL Mapper Configuration. Cause: &quot; + e, e);
+    }
+  }
+</code></pre>
+<p>这里选择  <code>&lt;properties&gt;</code>，<code>&lt;settings&gt;</code>，<code>&lt;plugins&gt;</code>，<code>&lt;mappers&gt;</code> 简要介绍。</p>
+<h3 id="解析-properties-标签">解析 <code>&lt;properties&gt;</code> 标签</h3>
+<p>通过 <code>&lt;properties&gt;</code> 标签定义 KV 信息供 MyBatis 使用，从 <code>&lt;properties&gt;</code> 标签中解析出来的 KV 信息会被记录到 <code>Properties</code> 对象（也就是 <code>Configuration</code> 全局配置对象的 <code>variables</code> 字段），解析其他标签时，MyBatis 会使用这个 <code>Properties</code> 对象中记录的 KV 信息替换匹配的占位符。</p>
+<h3 id="解析-settings-标签">解析 <code>&lt;settings&gt;</code> 标签</h3>
+<p><code>&lt;settings&gt;</code> 标签配置全局性的配置，例如，是否使用二级缓存、是否开启懒加载功能等。</p>
+<h3 id="解析-plugins-标签">解析 <code>&lt;plugins&gt;</code> 标签</h3>
+<p>可以自定义一个实现了 Interceptor 接口的插件来扩展 MyBatis 的行为。<code>pluginElement()</code> 方法就是解析 <code>&lt;plugins&gt;</code> 标签中配置的自定义插件，具体实现如下：</p>
+<pre><code class="language-java">private void pluginElement(XNode parent) throws Exception {
+    if (parent != null) {
+      // 遍历全部的 &lt;plugin&gt; 子标签
+      for (XNode child : parent.getChildren()) {
+        // 获取每个 &lt;plugin&gt; 标签中的interceptor属性
+        String interceptor = child.getStringAttribute(&quot;interceptor&quot;);
+        // 获取 &lt;plugin&gt; 标签下的其他配置信息
+        Properties properties = child.getChildrenAsProperties();
+        // 初始化 interceptor 属性指定的自定义插件
+        Interceptor interceptorInstance = (Interceptor) resolveClass(interceptor).getDeclaredConstructor().newInstance();
+        // 初始化插件的配置
+        interceptorInstance.setProperties(properties);
+        // 将 Interceptor 对象添加到 Configuration 的插件链中
+        configuration.addInterceptor(interceptorInstance);
+      }
+    }
+  }
+</code></pre>
+<h3 id="解析-mappers-标签">解析 <code>&lt;mappers&gt;</code> 标签</h3>
+<p>MyBatis 初始化的时候还会加载 <code>&lt;mappers&gt;</code> 标签下定义的 Mapper 映射文件。<code>&lt;mappers&gt;</code> 标签映射文件的位置，<code>mapperElement()</code> 方法就是加载各个 Mapper.xml 映射文件。同时，还会扫描文件相应的 Mapper 接口，处理其中的注解并将 Mapper 接口注册到 <code>MapperRegistry</code> 中。mapperElement() 方法的具体实现如下：</p>
+<pre><code class="language-java">private void mapperElement(XNode parent) throws Exception {
+    if (parent != null) {
+      for (XNode child : parent.getChildren()) {
+        // 扫描指定包
+        if (&quot;package&quot;.equals(child.getName())) {
+          String mapperPackage = child.getStringAttribute(&quot;name&quot;);
+          configuration.addMappers(mapperPackage);
+        } else {
+          // 解析 mapper 标签， resource、url、class 三个属性，只能设置一个
+          String resource = child.getStringAttribute(&quot;resource&quot;);
+          String url = child.getStringAttribute(&quot;url&quot;);
+          String mapperClass = child.getStringAttribute(&quot;class&quot;);
+          // 如果&lt;mapper&gt;子标签指定了resource或是url属性，会创建XMLMapperBuilder对象解析映射文件
+          if (resource != null &amp;&amp; url == null &amp;&amp; mapperClass == null) {
+            ErrorContext.instance().resource(resource);
+            InputStream inputStream = Resources.getResourceAsStream(resource);
+            XMLMapperBuilder mapperParser = new XMLMapperBuilder(inputStream, configuration, resource, configuration.getSqlFragments());
+            mapperParser.parse();
+          } else if (resource == null &amp;&amp; url != null &amp;&amp; mapperClass == null) {
+            ErrorContext.instance().resource(url);
+            InputStream inputStream = Resources.getUrlAsStream(url);
+            XMLMapperBuilder mapperParser = new XMLMapperBuilder(inputStream, configuration, url, configuration.getSqlFragments());
+            mapperParser.parse();
+          } else if (resource == null &amp;&amp; url == null &amp;&amp; mapperClass != null) {
+            // 如果&lt;mapper&gt;子标签指定了class属性，则向MapperRegistry注册class属性指定的Mapper接口
+            Class&lt;?&gt; mapperInterface = Resources.classForName(mapperClass);
+            configuration.addMapper(mapperInterface);
+          } else {
+            throw new BuilderException(&quot;A mapper element may only specify a url, resource or class, but not more than one.&quot;);
+          }
+        }
+      }
+    }
+  }
+</code></pre>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Redis （4）持久化]]></title>
+        <id>https://flipped94.github.io/post/wWHOe505F/</id>
+        <link href="https://flipped94.github.io/post/wWHOe505F/">
+        </link>
+        <updated>2023-06-18T04:53:21.000Z</updated>
+        <content type="html"><![CDATA[<p>持久化指将数据写入持久存储，例如固态硬盘 (SSD)。 Redis 提供了以下持久化选项：</p>
+<ul>
+<li>RDB（Redis Database）：RDB 持久化以指定的时间间隔保存数据快照。</li>
+<li>AOF（Append Only File）：AOF 持久化记录服务器收到的每一个写操作，服务器启动时再次执行这些操作重建原始数据集。</li>
+<li>RDB + AOF：同时使用 AOF 和 RDB。</li>
+<li>无持久化：禁用持久化。</li>
+</ul>
+<h2 id="rdb-持久化">RDB 持久化</h2>
+<h3 id="rdb-优点">RDB 优点</h3>
+<ul>
+<li>RDB  文件非常紧凑，非常适合备份。 例如，希望在最近 24 小时内每小时归档一次 RDB 文件，并在 30 天内每天保存一个 RDB 快照，这可以在灾难恢复时轻松恢复不同版本的数据集。</li>
+</ul>
+<ol>
+<li>RDB 文件非常适合灾难恢复，它是可以远程传输的紧凑文件。</li>
+<li>RDB 最大限度地提高了 Redis 的性能，因为 Redis 父进程为了持久化需要做的唯一工作就是 fork 一个子进程，子进程会完成剩下的工作。 父进程永远不会执行磁盘 I/O 或类似操作。</li>
+<li>与 AOF 相比，RDB 更快。</li>
+<li>在主备复制时，RDB 支持重启和故障转移后的部分重同步。</li>
+</ol>
+<h3 id="rdb-缺点">RDB 缺点</h3>
+<ul>
+<li>如果需要在 Redis 停止工作（例如断电）的情况下将数据丢失的可能性降到最低，则 RDB 并不适用。</li>
+<li>RDB 需要经常 fork() 以便使用子进程进行持久化。如果数据集很大，fork() 可能会很耗时，如果数据集很大且 CPU 性能不佳，可能会导致 Redis 停止几毫秒甚至一秒的服务。AOF 也需要 fork() 但频率较低。</li>
+</ul>
+<h2 id="aof-持久化">AOF 持久化</h2>
+<h3 id="aof-优点">AOF 优点</h3>
+<ul>
+<li>AOF 持久化的实时性更好：存在三种不同的 AOF 持久化方式（ <code>fsync</code> 策略）：<code>no</code>、<code>everysec</code> 和 <code>always</code>。默认是 <code>everysec</code>。<code>fsync</code> 使用后台线程执行，当没有进行 <code>fsync</code> 时，主线程会努力执行写入操作，因此只损失一秒钟的写入操作。</li>
+<li>AOF 日志是一个仅追加的日志，因此不会出现覆盖或损坏问题。即使由于某种原因（磁盘已满或其他原因），日志以半写命令结束，redis-check-aof 工具也能很容易地修复。</li>
+<li>Redis 能够在 AOF 过大时自动在后台重写它。重写是完全安全的，因为当 Redis 继续追加到旧文件时，会用创建当前数据集所需的最小操作集生成一个全新的文件，一旦第二个文件准备好，Redis 就会切换这两个文件并开始追加到新文件。</li>
+</ul>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Redis (3) 数据类型（Stream/Geospatial/HyperLogLog/Bitmap）]]></title>
+        <id>https://flipped94.github.io/post/rd9wJW_LL/</id>
+        <link href="https://flipped94.github.io/post/rd9wJW_LL/">
+        </link>
+        <updated>2023-06-18T01:11:34.000Z</updated>
+        <content type="html"><![CDATA[<p>来源<a href="https://redis.io/docs/data-types/">Redis 数据类型</a></p>
+<h2 id="stream-流">Stream 流</h2>
+<p>Redis 流是一种数据结构，其作用类似于仅追加日志。可以使用流实时记录和处理事件，Redis流的使用场景包括：</p>
+<ul>
+<li>事件源（例如，跟踪用户行为、点击等）</li>
+<li>传感器监控（例如，来自现场设备的数据）</li>
+<li>通知（例如，存储用户的通知记录）</li>
+</ul>
+<p>Redis为流条目生成一个唯一的ID。可以使用这些ID在以后检索相关的条目，或者读取和处理流中所有的后续条目。</p>
+<p>Redis流支持几种修剪策略（防止流无限制增长）和几种消费策略（见 <strong>XREAD</strong>、<strong>XREADGROUP</strong> 和 <strong>XRANGE</strong>）。</p>
+<h3 id="示例">示例</h3>
+<ul>
+<li>向流中添加几条天气数据</li>
+</ul>
+<pre><code class="language-bash">&gt; XADD temperatures:us-ny:10007 * temp_f 87.2 pressure 29.69 humidity 46
+&quot;1658354918398-0&quot;
+&gt; XADD temperatures:us-ny:10007 * temp_f 83.1 pressure 29.21 humidity 46.5
+&quot;1658354934941-0&quot;
+&gt; XADD temperatures:us-ny:10007 * temp_f 81.9 pressure 28.37 humidity 43.7
+&quot;1658354957524-0&quot;
+</code></pre>
+<p>使用 <b>*</b> 表示由 redis 生成 ID，可以自定义，但是要保证递增性。</p>
+<ul>
+<li>读取从ID 1658354934941-0 开始的两个条目</li>
+</ul>
+<pre><code class="language-bash">&gt; XRANGE temperatures:us-ny:10007 1658354934941-0 + COUNT 2
+1) 1) &quot;1658354934941-0&quot;
+   2) 1) &quot;temp_f&quot;
+      2) &quot;83.1&quot;
+      3) &quot;pressure&quot;
+      4) &quot;29.21&quot;
+      5) &quot;humidity&quot;
+      6) &quot;46.5&quot;
+2) 1) &quot;1658354957524-0&quot;
+   2) 1) &quot;temp_f&quot;
+      2) &quot;81.9&quot;
+      3) &quot;pressure&quot;
+      4) &quot;28.37&quot;
+      5) &quot;humidity&quot;
+      6) &quot;43.7&quot;
+</code></pre>
+<ul>
+<li>从流尾部读取最多100个新条目，如果没有写入，则最多阻塞300毫秒</li>
+</ul>
+<pre><code class="language-bash">&gt; XREAD COUNT 100 BLOCK 300 STREAMS temperatures:us-ny:10007 $
+(nil)
+</code></pre>
+<h3 id="基础命令">基础命令</h3>
+<ul>
+<li><strong>XADD</strong> 向流添加新条目。</li>
+<li><strong>XREAD</strong> 从给定的位置开始并向前移动读取一个或多个条目。</li>
+<li><strong>XRANGE</strong> 返回两个 ID 范围之间的条目。</li>
+<li><strong>XLEN</strong> 返回流的长度。</li>
+</ul>
+<h3 id="性能">性能</h3>
+<p>向流中添加条目是 O(1)。访问任何条目都是 O(n)，其中 n 是 ID 的长度。由于流 ID 通常很短且长度固定，因此这有效地减少为常量查找时间，因为流基于基数树（Radix Tree）实现。</p>
+<p>简单地说，Redis 流提供了高效的插入和读取。</p>
+<h2 id="geospatial-地理位置">Geospatial 地理位置</h2>
+<p>Redis 地理空间索引存储坐标并搜索它们。这种数据结构对于在给定的半径或边界内寻找附近的点很有用。</p>
+<h3 id="示例-2">示例</h3>
+<p>假设有一个移动应用程序，找到离你当前位置最近的所有电动汽车充电站。</p>
+<ul>
+<li>添加几个地点到地理空间索引中</li>
+</ul>
+<pre><code class="language-bash">&gt; GEOADD locations:ca -122.27652 37.805186 station:1
+(integer) 1
+&gt; GEOADD locations:ca -122.2674626 37.8062344 station:2
+(integer) 1
+&gt; GEOADD locations:ca -122.2469854 37.8104049 station:3
+(integer) 1
+</code></pre>
+<ul>
+<li>找到给定地点5公里半径内的所有站点，并返回到每个站点的距离：</li>
+</ul>
+<pre><code class="language-bash">&gt; GEOSEARCH locations:ca FROMLONLAT -122.2612767 37.7936847 BYRADIUS 5 km WITHDIST
+1) 1) &quot;station:1&quot;
+   2) &quot;1.8523&quot;
+2) 1) &quot;station:2&quot;
+   2) &quot;1.4979&quot;
+3) 1) &quot;station:3&quot;
+   2) &quot;2.2441&quot;
+</code></pre>
+<h3 id="基础命令-2">基础命令</h3>
+<ul>
+<li><strong>GEOADD</strong> 向地理空间索引中添加地理位置（注意经度在前，纬度在后）。</li>
+<li><strong>GEOSEARCH</strong> 返回具有给定半径或边界的所有地理位置。</li>
+</ul>
+<h2 id="hyperloglog">HyperLogLog</h2>
+<p>HyperLogLog是估计集合的基数的一种数据结构。集合的基数是集合中不重复元素元素的数目，比如数据集 {1, 3, 5, 7, 5, 7, 8}， 那么这个数据集的基数集为 {1, 3, 5 ,7, 8},，基数为5。基数估计就是在误差可接受的范围内，快速计算基数。作为一种概率数据结构，HyperLogLog 以完美的准确性换取有效的空间利用。<br>
+Redis HyperLogLog 实现最多使用12 KB，标准误差为0.81%。</p>
+<h3 id="示例-3">示例</h3>
+<ul>
+<li>向 HyperLogLog 中添加元素</li>
+</ul>
+<pre><code class="language-bash">&gt; PFADD members 123
+(integer) 1
+&gt; PFADD members 500
+(integer) 1
+&gt; PFADD members 12
+(integer) 1
+</code></pre>
+<ul>
+<li>估计集合成员数量</li>
+</ul>
+<pre><code class="language-bash">&gt; PFCOUNT members
+(integer) 3
+</code></pre>
+<h3 id="基础命令-3">基础命令</h3>
+<ul>
+<li><strong>PFADD</strong> 向 HyperLogLog 添加元素。</li>
+<li><strong>PFCOUNT</strong> 返回集合中成员数量的估计值。</li>
+<li><strong>PFMERGE</strong> 将两个或多个 HyperLogLog 合并为一个。</li>
+</ul>
+<h3 id="性能-2">性能</h3>
+<p>向 HyperLogLog 写 (PFADD) 和读 (PFCOUNT) 是在常量时间和空间内完成的。合并是 O(n)，其中 n 为合并的 HyperLogLog 数量。</p>
+<h3 id="限制">限制</h3>
+<p>HyperLogLog 可以估计最多2^64(18,446,744,073,709,551,616)个成员的集合的基数。</p>
+<h2 id="bitmap-位图">Bitmap 位图</h2>
+<p>Redis 位图是字符串数据类型的扩展，它可以将字符串当作位向量（由一些二进制位组成的向量）。还可以对一个或多个字符串执行位操作。位图的一些使用场景:</p>
+<ul>
+<li>高效的集合表示，用于集合的成员对应于整数0-N的情况。</li>
+<li>对象权限，其中每个位代表一个特定的权限，类似于文件系统存储权限的方式。</li>
+</ul>
+<h3 id="示例-4">示例</h3>
+<p>假设有 1000 个部署在现场的传感器，标记为 0-999。希望快速确定某个传感器是否在某个时间 ping 了服务器。可以用位图处理这种场景，这个位图的键是时间。</p>
+<ul>
+<li>传感器 123 在2024-01-01-00:00 ping 了服务器。</li>
+</ul>
+<pre><code class="language-bash">&gt; SETBIT pings:2024-01-01-00:00 123 1
+(integer) 0
+</code></pre>
+<ul>
+<li>传感器123是否在2024-01-01-00:00 ping 了服务器</li>
+</ul>
+<pre><code class="language-bash">&gt; GETBIT pings:2024-01-01-00:00 123
+1
+</code></pre>
+<ul>
+<li>传感器 456 呢？</li>
+</ul>
+<pre><code class="language-bash">&gt; GETBIT pings:2024-01-01-00:00 456
+0
+</code></pre>
+<h3 id="基础命令-4">基础命令</h3>
+<ul>
+<li><strong>SETBIT</strong> 将指定偏移量的位的值设置为 0 或 1。</li>
+<li><strong>GETBIT</strong> 返回指定偏移量的位的值。</li>
+<li><strong>BITOP</strong> 对一个或多个字符串进行位操作。</li>
+</ul>
+<h3 id="性能-3">性能</h3>
+<p><strong>SETBIT</strong> 和 <strong>GETBIT</strong> 为0(1)。BITOP 是 O(n)，其中 n 是最长字符串的长度。</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Redis (2) 数据类型（字符串/列表/集合/哈希/有序集合）]]></title>
+        <id>https://flipped94.github.io/post/f3KuchnPs/</id>
+        <link href="https://flipped94.github.io/post/f3KuchnPs/">
+        </link>
+        <updated>2023-06-17T12:40:06.000Z</updated>
+        <content type="html"><![CDATA[<p>本文学习基本的 Redis 数据类型以及如何使用它们，均使用 <code>redis-cli</code> 完成。来源 <a href="https://redis.io/docs/data-types/">Redis 数据类型</a></p>
+<h2 id="键">键</h2>
+<p>Redis 键是二进制安全的，意味着可以使用任何二进制序列作为键，从形如 &quot;foo&quot; 的字符串到 JPEG 文件的内容，甚至空字符串也是有效键。<br>
+几条关于键的规则：</p>
+<ul>
+<li>不推荐非常大的键。例如，一个1024字节的键，不仅在内存方面，而且还因为在数据库查找该键可能需要几次昂贵的比较。对该键进行散列（例如 SHA1）是一个更好的主意，特别是从内存和带宽的角度来看。</li>
+<li>不推荐非常短的键。把 &quot;u1000flw&quot; 作键就没有什么意义，如果写成 &quot;user:1000:followers&quot; 更具可读性，而且与键对象本身和值对象使用的空间相比，增加的空间很小。</li>
+<li>坚持使用某种模式。例如&quot;类型:id&quot;，如 &quot;user:1000&quot;。点或破折号通常用于多字段，如 &quot;comment:4321:reply.to&quot; 或 &quot;comment:4321:reply-to&quot;。</li>
+<li>键最大允许 512MB</li>
+</ul>
+<h2 id="string-字符串">String 字符串</h2>
+<p>Redis 字符串存储字节序列，包括文本、序列化对象和二进制数组。因此，字符串是最基本的Redis数据类型。它们经常被用于缓存，但它们也支持额外的功能，比如实现计数器和执行位操作。</p>
+<h3 id="示例">示例</h3>
+<ul>
+<li>存储并检索</li>
+</ul>
+<pre><code class="language-bash">&gt; SET user:1 salvatore
+OK
+&gt; GET user:1
+&quot;salvatore&quot;
+</code></pre>
+<ul>
+<li>存储 JSON 字符串并设置 10 秒后过期</li>
+</ul>
+<pre><code class="language-bash">&gt; SET ticket:27 &quot;\&quot;{'username': 'priya', 'ticket_id': 321}\&quot;&quot; EX 100
+</code></pre>
+<ul>
+<li>计数器递增</li>
+</ul>
+<pre><code class="language-bash">&gt; INCR views:page:2
+(integer) 1
+&gt; INCRBY views:page:2 10
+(integer) 11
+</code></pre>
+<h3 id="限制">限制</h3>
+<p>默认情况下，Redis 字符串的最大容量为512MB。</p>
+<h3 id="基础命令">基础命令</h3>
+<h4 id="存储和检索">存储和检索</h4>
+<ul>
+<li><strong>SET</strong>: 存储字符串值。</li>
+<li><strong>SETNX</strong>: 只在键不存在的情况下存储字符串值。对于实现锁很有用。</li>
+<li><strong>GET</strong>: 检索字符串值。</li>
+<li><strong>MGET</strong>: 在一个操作中检索多个字符串值。</li>
+</ul>
+<h4 id="计数器">计数器</h4>
+<ul>
+<li><strong>INCRBY</strong> 是以原子方式递增（当传递负数时则递减）计数器。</li>
+<li><strong>INCRBYFLOAT</strong> 适用于浮点型计数器。</li>
+</ul>
+<h4 id="位运算">位运算</h4>
+<p>参见后文 bitmap 数据类型</p>
+<h3 id="性能">性能</h3>
+<p>大多数字符串操作都是 O(1)，这意味着它们的效率很高。然而，要注意 <strong>SUBSTR</strong>、<strong>GETRANGE</strong> 和 <strong>SETRANGE</strong> 命令，它们可能是O(n)。这些随机访问的字符串命令在处理大字符串时可能会导致性能问题。</p>
+<h2 id="list-列表">List 列表</h2>
+<p>Redis 列表是字符串值的链表。Redis 列表经常用于：</p>
+<ul>
+<li>实现堆栈和队列。</li>
+<li>为后台工作系统构建队列管理。</li>
+</ul>
+<h3 id="示例-2">示例</h3>
+<ul>
+<li>将列表用作队列（先进先出）</li>
+</ul>
+<pre><code class="language-bash">&gt; LPUSH work:queue:ids 101
+(integer) 1
+&gt; LPUSH work:queue:ids 237
+(integer) 2
+&gt; RPOP work:queue:ids
+&quot;101&quot;
+&gt; RPOP work:queue:ids
+&quot;237&quot;
+</code></pre>
+<ul>
+<li>将列表用作栈（先进后出）</li>
+</ul>
+<pre><code class="language-bash">&gt; LPUSH work:queue:ids 101
+(integer) 1
+&gt; LPUSH work:queue:ids 237
+(integer) 2
+&gt; LPOP work:queue:ids
+&quot;237&quot;
+&gt; LPOP work:queue:ids
+&quot;101&quot;
+</code></pre>
+<ul>
+<li>列表长度</li>
+</ul>
+<pre><code class="language-bash">&gt; LLEN work:queue:ids
+(integer) 0
+</code></pre>
+<ul>
+<li>原子地从一个列表中弹出一个元素并移动到另一个列表：</li>
+</ul>
+<pre><code class="language-bash">&gt; LPUSH board:todo:ids 101
+(integer) 1
+&gt; LPUSH board:todo:ids 273
+(integer) 2
+&gt; LMOVE board:todo:ids board:in-progress:ids LEFT LEFT
+&quot;273&quot;
+&gt; LRANGE board:todo:ids 0 -1
+1) &quot;101&quot;
+&gt; LRANGE board:in-progress:ids 0 -1
+1) &quot;273&quot;
+</code></pre>
+<ul>
+<li>如果想要创建一个永远不会超过 100 个元素的上限列表，你可以在每次调用 <strong>LPUSH</strong> 后调用 <strong>LTRIM</strong>：</li>
+</ul>
+<pre><code class="language-bash">&gt; LPUSH notifications:user:1 &quot;You've got mail!&quot;
+(integer) 1
+&gt; LTRIM notifications:user:1 0 99
+OK
+&gt; LPUSH notifications:user:1 &quot;Your package will be delivered at 12:01 today.&quot;
+(integer) 2
+&gt; LTRIM notifications:user:1 0 99
+OK
+</code></pre>
+<h3 id="限制-2">限制</h3>
+<p>Redis列表的最大长度是 2^32-1（4,294,967,295）个元素。</p>
+<h3 id="基础命令-2">基础命令</h3>
+<ul>
+<li><strong>LPUSH</strong> 在列表的头部添加一个新的元素；<strong>RPUSH</strong> 在尾部添加。</li>
+<li><strong>LPOP</strong> 从一个列表的头部删除并返回一个元素；<strong>RPOP</strong> 从列表的尾部删除并返回一个元素。</li>
+<li><strong>LLEN</strong> 返回一个列表的长度。</li>
+<li><strong>LMOVE</strong> 将元素从一个列表中原子地移动到另一个列表中。</li>
+<li><strong>LTRIM</strong> 将一个列表减少到包含指定范围内的元素。</li>
+</ul>
+<h3 id="阻塞命令">阻塞命令</h3>
+<p>列表支持几个封锁命令。比如：</p>
+<ul>
+<li><strong>BLPOP</strong> 从一个列表的头部移除并返回一个元素。如果列表是空的，该命令会阻塞，直到有元素或者达到指定超时。</li>
+<li><strong>BLMOVE</strong> 原子地将元素从源列表中移动到目标列表中。如果源列表是空的，该命令会阻塞，直到有元素。</li>
+</ul>
+<h3 id="性能-2">性能</h3>
+<p>访问列表头部或尾部的操作是 O(1)，这意味着它们的效率很高。然而，操作列表中的元素的命令通常是<br>
+O(n)，对大列表运行 <strong>LINDEX</strong>, <strong>LINSERT</strong>, 和 <strong>LSET</strong> 命令时要小心。</p>
+<h2 id="set-集合">Set 集合</h2>
+<p>Redis 的 Set 是 String 类型的无序集合。集合成员是唯一的。可以使用 Redis 集合来有效地：</p>
+<ul>
+<li>追溯唯一项（例如，追溯访问给定博客文章的所有唯一IP地址）。</li>
+<li>表示关系（例如，具有特定角色的所有用户的集合）。</li>
+<li>执行常见的集合操作，如交集，并集，差集。</li>
+</ul>
+<h3 id="示例-3">示例</h3>
+<ul>
+<li>存储用户123和456的最喜欢的图书ID集：</li>
+</ul>
+<pre><code class="language-bash">&gt; SADD user:123:favorites 347
+(integer) 1
+&gt; SADD user:123:favorites 561
+(integer) 1
+&gt; SADD user:123:favorites 742
+(integer) 1
+&gt; SADD user:456:favorites 561
+(integer) 1
+</code></pre>
+<ul>
+<li>检查用户123是否喜欢书742和299</li>
+</ul>
+<pre><code class="language-bash">&gt; SISMEMBER user:123:favorites 742
+(integer) 1
+&gt; SISMEMBER user:123:favorites 299
+(integer) 0
+</code></pre>
+<ul>
+<li>用户123和456均喜欢的书</li>
+</ul>
+<pre><code class="language-bash">&gt; SINTER user:123:favorites user:456:favorites
+1) &quot;561&quot;
+</code></pre>
+<ul>
+<li>用户123收藏了多少本书？</li>
+</ul>
+<pre><code class="language-bash">&gt; SCARD user:123:favorites
+(integer) 3
+</code></pre>
+<h3 id="限制-3">限制</h3>
+<p>Redis 集合最多容纳2^32 - 1 (4,294,967,295)个成员。</p>
+<h3 id="基础命令-3">基础命令</h3>
+<ul>
+<li><strong>SADD</strong> 向集合添加新成员。</li>
+<li><strong>SREM</strong> 从集合中删除指定成员。</li>
+<li><strong>SISMEMBER</strong> 测试字符串是否是集合成员。</li>
+<li><strong>SINTER</strong> 返回两个或多个集合的交集。</li>
+<li><strong>SCARD</strong> 返回集合的大小。</li>
+</ul>
+<h3 id="性能-3">性能</h3>
+<p>大多数集合操作，包括添加、删除和检查是否是集合成员，都是 O(1)。这意味着它们是非常高效的。然而，<strong>SMEMBERS</strong> 是 O(n)，它返回整个集合。对于有几十万个成员或更大的大型集合，可以考虑使用<strong>SSCAN</strong>，它可以迭代地检索一个集合的所有成员。</p>
+<h2 id="hash-哈希">Hash 哈希</h2>
+<p>哈希是键值对的集合构造的记录类型。可以使用哈希来表示对象和分组计算器。</p>
+<h3 id="示例-4">示例</h3>
+<ul>
+<li>用哈希表示用户资料</li>
+</ul>
+<pre><code class="language-bash">&gt; HSET user:123 username martina firstName Martina lastName Elisa country GB
+(integer) 4
+&gt; HGET user:123 username
+&quot;martina&quot;
+&gt; HGETALL user:123
+1) &quot;username&quot;
+2) &quot;martina&quot;
+3) &quot;firstName&quot;
+4) &quot;Martina&quot;
+5) &quot;lastName&quot;
+6) &quot;Elisa&quot;
+7) &quot;country&quot;
+8) &quot;GB&quot;
+</code></pre>
+<ul>
+<li>存储设备 777 ping 服务器、发出请求或发送错误的次数的计数器：</li>
+</ul>
+<pre><code class="language-bash">&gt; HINCRBY device:777:stats pings 1
+(integer) 1
+&gt; HINCRBY device:777:stats pings 1
+(integer) 2
+&gt; HINCRBY device:777:stats pings 1
+(integer) 3
+&gt; HINCRBY device:777:stats errors 1
+(integer) 1
+&gt; HINCRBY device:777:stats requests 1
+(integer) 1
+&gt; HGET device:777:stats pings
+&quot;3&quot;
+&gt; HMGET device:777:stats requests errors
+1) &quot;1&quot;
+2) &quot;1&quot;
+</code></pre>
+<h3 id="基础命令-4">基础命令</h3>
+<ul>
+<li><strong>HSET</strong> 设置哈希上的一个或多个字段的值。</li>
+<li><strong>HGET</strong> 返回一个给定字段的值。</li>
+<li><strong>HMGET</strong> 返回一个或多个给定字段的值。</li>
+<li><strong>HINCRBY</strong> 增加给定字段的值。</li>
+</ul>
+<h3 id="性能-4">性能</h3>
+<p>大多数Redis哈希命令是O(1)。少数命令，如 <strong>HKEYS</strong>、<strong>HVALS</strong> 和 <strong>HGETALL</strong> 是O(n)，其中 n 是一个哈希中键值对的数量。</p>
+<h3 id="限制-4">限制</h3>
+<p>每个哈希最多可以存储4,294,967,295（2^32 - 1）个键值对。实践中，只受部署 Redis 机器的内存限制。</p>
+<h2 id="sorted-set-有序集合">Sorted Set 有序集合</h2>
+<p>Redis 有序集合是按分数排序的唯一字符串（成员）的集合。当一个以上的字符串具有相同的分数时，这些字符串将按词典排序。使用场景：</p>
+<ul>
+<li>排行榜。例如，使用有序集合维护大型网络游戏中最高分的有序列表。</li>
+<li>限流器。使用排序集建立一个滑动窗口限流器，以防止过多的 API 请求。</li>
+</ul>
+<h3 id="示例-5">示例</h3>
+<ul>
+<li>实时更新玩家的分数排行榜：</li>
+</ul>
+<pre><code class="language-bash">&gt; ZADD leaderboard:455 100 user:1
+(integer) 1
+&gt; ZADD leaderboard:455 75 user:2
+(integer) 1
+&gt; ZADD leaderboard:455 101 user:3
+(integer) 1
+&gt; ZADD leaderboard:455 15 user:4
+(integer) 1
+&gt; ZADD leaderboard:455 275 user:2
+(integer) 0
+</code></pre>
+<ul>
+<li>获取前3名玩家的分数：</li>
+</ul>
+<pre><code class="language-bash">&gt; ZRANGE leaderboard:455 0 2 REV WITHSCORES
+1) &quot;user:2&quot;
+2) &quot;275&quot;
+3) &quot;user:3&quot;
+4) &quot;101&quot;
+5) &quot;user:1&quot;
+6) &quot;100&quot;
+</code></pre>
+<ul>
+<li>用户2的排名</li>
+</ul>
+<pre><code class="language-bash">&gt; ZREVRANK leaderboard:455 user:2
+(integer) 0
+</code></pre>
+<h3 id="基础命令-5">基础命令</h3>
+<ul>
+<li><strong>ZADD</strong> 将新成员和分数添加到集合。如果该成员已经存在，那么更新分数。</li>
+<li><strong>ZRANGE</strong> 返回有序集合指定区间内的成员。</li>
+<li><strong>ZRANK</strong> 返回成员的排名，（升序）。</li>
+<li><strong>ZREVRANK</strong> 返回成员的排名（降序）。</li>
+</ul>
+<h3 id="性能-5">性能</h3>
+<p>大多数有序集合的操作是 O(log(n))，其中 n 是成员的数量。在运行 <strong>ZRANGE</strong> 命令时，返回集合非常大（例如，数以万计或更多）的情况下要谨慎一些，这个命令的时间复杂度是O(log(n) + m)，其中 m 是返回的结果数量。</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Redis（1）编译安装]]></title>
+        <id>https://flipped94.github.io/post/kEYDRAsfA/</id>
+        <link href="https://flipped94.github.io/post/kEYDRAsfA/">
+        </link>
+        <updated>2023-06-17T10:55:15.000Z</updated>
+        <content type="html"><![CDATA[<p>从源码编译并安装 Redis，环境为 WSL2。</p>
+<h2 id="下载源码">下载源码</h2>
+<p>运行下面的命令下载 Redis 最新稳定版源码：</p>
+<pre><code class="language-bash">wget https://download.redis.io/redis-stable.tar.gz
+</code></pre>
+<h2 id="编译">编译</h2>
+<p>首先切换到下载 Redis 源码压缩文件目录解压源码，然后进入源码目录并执行 <code>make</code> 命令：</p>
+<pre><code class="language-bash">tar -xzvf redis-stable.tar.gz
+cd redis-stable
+make
+</code></pre>
+<p>如果编译成功，在 src 目录下会生成包括以下两个文件在内的 Redis 二进制文件</p>
+<ul>
+<li>redis-server：Redis 服务端</li>
+<li>redis-cli 与 redis 服务端交互的命令行工具</li>
+</ul>
+<p>如果需要安装到 <code>/usr/local/bin</code> 目录，执行以下命令即可：</p>
+<pre><code class="language-bash">make install
+</code></pre>
+<h2 id="前台启动并停止-redis">前台启动并停止 Redis</h2>
+<p>安装 Reids 后，执行以下命令即可启动 Redis：</p>
+<pre><code class="language-bash">redis-server
+</code></pre>
+<p>如果启动成功，将会看到启动日志，并且 Redis 在前台运行，输入 Ctrl-C 即可停止运行。</p>
+<h2 id="redis-cli-与-redis-server-交互">redis-cli 与 redis server 交互</h2>
+<p>执行以下命令即可与 redis 服务器连接</p>
+<pre><code class="language-bash">redis-cli -h ip -p port
+</code></pre>
+<h2 id="存储并检索">存储并检索</h2>
+<p>执行以下命令向 redis 服务器存储数据并从 redis 服务器检索数据（&gt; 是命令行提示符）</p>
+<pre><code class="language-bash">&gt; SET user:1 salvatore
+OK
+&gt; GET user:1
+&quot;salvatore&quot;
+</code></pre>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[@Transaction 注解失效场景]]></title>
+        <id>https://flipped94.github.io/post/1a-hQkc8c/</id>
+        <link href="https://flipped94.github.io/post/1a-hQkc8c/">
+        </link>
+        <updated>2023-06-13T00:28:45.000Z</updated>
+        <content type="html"><![CDATA[<p>在以下场景 <code>@Transaction</code> 事务会失效：</p>
+<h3 id="把注解标注在非-public-方法">把注解标注在非 public 方法</h3>
+<pre><code class="language-java">private TransactionAttribute computeTransactionAttribute(Method method, Class&lt;?&gt; targetClass) {
+    // Don't allow no-public methods as required.
+    if (allowPublicMethodsOnly() &amp;&amp; !Modifier.isPublic(method.getModifiers())){
+        return null;
+    }
+        ...
+}
+</code></pre>
+<h3 id="propagation-传播行为配置不合理">propagation 传播行为配置不合理</h3>
+<p>如果配置以下 3 种事务传播行为，事务将不会发生回滚：</p>
+<ul>
+<li><code>TransactionDefinition.PROPAGATION_SUPPORTS</code>: 如果当前存在事务，则加入该事务；如果当前没有事务，则以非事务的方式继续运行。</li>
+<li><code>TransactionDefinition.PROPAGATION_NOT_SUPPORTED</code>: 以非事务方式运行，如果当前存在事务，则把当前事务挂起。</li>
+<li><code>TransactionDefinition.PROPAGATION_NEVER</code>: 以非事务方式运行，如果当前存在事务，则抛出异常。</li>
+</ul>
+<h3 id="rollback-属性设置错误">rollback 属性设置错误</h3>
+<p>默认情况下，事务只有遇到运行期异常（RuntimeException 的子类）时才会回滚，Error 也会导致事务回滚，但是，在遇到受查异常时不会回滚。</p>
+<h3 id="在同一个类中方法调用导致事务失效">在同一个类中方法调用，导致事务失效</h3>
+<p>若同一类中方法内部调用事务会失效。这是由于 Spring AOP 代理的原因造成的，内部内部调用只是普通方法调用，只有当 <code>@Transactional</code> 注解的方法在类以外被调用的时候，才会由Spring 生成的代理对象管理。</p>
+<h3 id="主动-catch-异常">主动 catch 异常</h3>
+<p>主动 catch 异常，代表没有出现异常，事务会失效。</p>
+<h3 id="数据库引擎不支持事务">数据库引擎不支持事务</h3>
+<p>数据库引擎不支持事务，例如 MyISAM，当然不会生效。</p>
+]]></content>
+    </entry>
+</feed>
